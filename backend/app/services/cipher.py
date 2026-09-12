@@ -15,10 +15,9 @@ _YDL_OPTS: dict[str, Any] = {
     "skip_download": True,
     "format": "bestaudio/best",
     "extract_flat": False,
-    # Use Android client — returns unciphered URLs, no Node.js needed
     "extractor_args": {
         "youtube": {
-            "player_client": ["android", "web"],
+            "player_client": ["android", "ios", "mweb", "web"],
         }
     },
 }
@@ -44,18 +43,30 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
         f
         for f in formats
         if f.get("url")
-        and (f.get("vcodec") in (None, "none") or "audio" in str(f.get("mimeType", "")).lower())
-        and (f.get("abr") or 0) > 0
+        and (
+            f.get("vcodec") in (None, "none")
+            or "audio" in str(f.get("mimeType", "")).lower()
+            or (f.get("acodec") and f.get("acodec") != "none")
+        )
     ]
-    # Sort strictly by audio bitrate (abr) descending so we get 160k opus / 128k aac
-    audio_formats.sort(key=lambda f: float(f.get("abr") or 0), reverse=True)
+    # Sort by audio bitrate
+    audio_formats.sort(
+        key=lambda f: float(f.get("abr") or f.get("tbr") or f.get("bitrate") or 0),
+        reverse=True,
+    )
 
     if audio_formats:
         best_fmt = audio_formats[0]
         mime = best_fmt.get("mimetype") or best_fmt.get("ext") or "audio/webm"
         return best_fmt["url"], _guess_mime(mime, best_fmt["url"])
 
-    # Fallback to info.get("url") if formats list was empty
+    # Fallback to any format with a direct url
+    direct_formats = [f for f in formats if f.get("url")]
+    if direct_formats:
+        best_fmt = direct_formats[0]
+        mime = best_fmt.get("mimetype") or best_fmt.get("ext") or "audio/webm"
+        return best_fmt["url"], _guess_mime(mime, best_fmt["url"])
+
     url = info.get("url")
     if url:
         mime = info.get("mimetype") or info.get("ext") or "audio/webm"

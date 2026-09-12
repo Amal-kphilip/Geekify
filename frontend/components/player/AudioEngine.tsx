@@ -167,23 +167,19 @@ export function AudioEngine() {
     try {
       if (!ctxRef.current) {
         const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (!AudioCtx) return;
-        const ctx = new AudioCtx();
-        ctxRef.current = ctx;
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 64;
-        analyserRef.current = analyser;
-        if (!sourceRef.current) {
-          sourceRef.current = ctx.createMediaElementSource(audio);
-          sourceRef.current.connect(analyser);
-          analyser.connect(ctx.destination);
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          ctxRef.current = ctx;
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 64;
+          analyserRef.current = analyser;
         }
       }
       if (ctxRef.current && ctxRef.current.state === "suspended") {
         ctxRef.current.resume().catch(() => undefined);
       }
     } catch {
-      // Fallback to simulated bins if Web Audio MediaElementSource is restricted
+      // Ignore Web Audio errors; simulated bars will take over
     }
     tick();
   }
@@ -265,8 +261,7 @@ export function AudioEngine() {
   return (
     <audio
       ref={audioRef}
-      preload="metadata"
-      crossOrigin="anonymous"
+      preload="auto"
       className="hidden"
     />
   );

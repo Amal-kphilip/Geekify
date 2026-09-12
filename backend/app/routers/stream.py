@@ -55,16 +55,7 @@ def _resolve_stream_sync(video_id: str) -> ResolvedStream:
     if isinstance(cached, ResolvedStream):
         return cached
 
-    # Fast path: yt-dlp handles deciphering, visitor tokens, adaptive formats directly
-    try:
-        url, mime = extract_url_with_ytdlp(video_id)
-        resolved = ResolvedStream(url=url, mime=mime, itag=None, client="yt-dlp")
-        cache.set_stream(video_id, resolved)
-        return resolved
-    except Exception as exc:
-        logger.info("yt-dlp resolution failed, trying innertube player: %s", exc)
-
-    # Secondary path: innertube player
+    # Fast path: innertube ANDROID client — unciphered URLs, ~2-3s
     try:
         data, client_name = player_response(video_id)
         playability_or_raise(data, video_id)
@@ -90,7 +81,16 @@ def _resolve_stream_sync(video_id: str) -> ResolvedStream:
             },
         ) from exc
     except Exception as exc:
-        logger.warning("innertube player fallback also failed: %s", exc)
+        logger.info("innertube fast path failed, trying yt-dlp: %s", exc)
+
+    # Slow fallback: yt-dlp handles ciphered URLs (~15-20s on free tier)
+    try:
+        url, mime = extract_url_with_ytdlp(video_id)
+        resolved = ResolvedStream(url=url, mime=mime, itag=None, client="yt-dlp")
+        cache.set_stream(video_id, resolved)
+        return resolved
+    except Exception as exc:
+        logger.info("yt-dlp resolution also failed: %s", exc)
 
     raise HTTPException(
         status_code=502,
