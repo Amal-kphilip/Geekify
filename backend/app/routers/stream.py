@@ -11,12 +11,6 @@ import httpx
 from app import cache
 from app.cache import drop_stream
 from app.services.cipher import extract_url_with_ytdlp
-from app.services.innertube_client import (
-    PlayabilityError,
-    pick_audio_format,
-    player_response,
-    playability_or_raise,
-)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -55,42 +49,14 @@ def _resolve_stream_sync(video_id: str) -> ResolvedStream:
     if isinstance(cached, ResolvedStream):
         return cached
 
-    # Fast path: innertube ANDROID client — unciphered URLs, ~2-3s
-    try:
-        data, client_name = player_response(video_id)
-        playability_or_raise(data, video_id)
-        fmt = pick_audio_format(data.get("streamingData") or {})
-        if fmt and fmt.get("url"):
-            mime = str(fmt.get("mimeType") or "audio/webm").split(";")[0]
-            resolved = ResolvedStream(
-                url=fmt["url"],
-                mime=mime,
-                itag=fmt.get("itag"),
-                client=client_name,
-            )
-            cache.set_stream(video_id, resolved)
-            return resolved
-    except PlayabilityError as exc:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "unplayable",
-                "status": exc.status,
-                "reason": exc.reason,
-                "videoId": exc.video_id,
-            },
-        ) from exc
-    except Exception as exc:
-        logger.info("innertube fast path failed, trying yt-dlp: %s", exc)
-
-    # Slow fallback: yt-dlp handles ciphered URLs (~15-20s on free tier)
+    # Primary path: yt-dlp multi-client extractor
     try:
         url, mime = extract_url_with_ytdlp(video_id)
         resolved = ResolvedStream(url=url, mime=mime, itag=None, client="yt-dlp")
         cache.set_stream(video_id, resolved)
         return resolved
     except Exception as exc:
-        logger.info("yt-dlp resolution also failed: %s", exc)
+        logger.warning("yt-dlp resolution failed for %s: %s", video_id, exc)
 
     raise HTTPException(
         status_code=502,
