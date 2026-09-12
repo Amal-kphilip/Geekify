@@ -57,16 +57,15 @@ def _resolve_stream_sync(video_id: str) -> ResolvedStream:
         return resolved
     except Exception as exc:
         logger.warning("yt-dlp resolution failed for %s: %s", video_id, exc)
-
-    raise HTTPException(
-        status_code=502,
-        detail={
-            "error": "stream_unavailable",
-            "status": "ERROR",
-            "reason": "Could not resolve a playable audio URL.",
-            "videoId": video_id,
-        },
-    )
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "stream_unavailable",
+                "status": "ERROR",
+                "reason": str(exc),
+                "videoId": video_id,
+            },
+        ) from exc
 
 
 @router.api_route("/stream/{video_id}", methods=["GET", "HEAD", "OPTIONS"])

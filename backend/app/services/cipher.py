@@ -15,7 +15,13 @@ _YDL_OPTS: dict[str, Any] = {
     "skip_download": True,
     "extractor_args": {
         "youtube": {
-            "player_client": ["tvhtml5", "android"],
+            "player_client": [
+                "android_music",
+                "ios_music",
+                "tvhtml5",
+                "android",
+                "android_vr",
+            ],
         }
     },
 }
