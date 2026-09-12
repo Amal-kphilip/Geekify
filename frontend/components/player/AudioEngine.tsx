@@ -17,6 +17,7 @@ export function AudioEngine() {
   const isReadyRef = useRef(false);
   const isMountedRef = useRef(true);
   const currentVideoIdRef = useRef<string | null>(null);
+  const isInitialMount = useRef(true);
   const seekLock = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const rafRef = useRef<number>(0);
@@ -49,10 +50,11 @@ export function AudioEngine() {
       if (!containerRef.current) return;
 
       const mountPoint = document.createElement("div");
-      mountPoint.id = "yt-mount-" + Math.random().toString(36).substring(2, 9);
+      mountPoint.id = "yt-mount-player";
+      containerRef.current.innerHTML = "";
       containerRef.current.appendChild(mountPoint);
 
-      playerRef.current = new window.YT.Player(mountPoint.id, {
+      playerRef.current = new window.YT.Player("yt-mount-player", {
         height: "200",
         width: "200",
         playerVars: {
@@ -77,7 +79,11 @@ export function AudioEngine() {
               const track = usePlayerStore.getState().currentTrack;
               if (track) {
                 currentVideoIdRef.current = track.videoId;
-                event.target.loadVideoById(track.videoId);
+                if (usePlayerStore.getState().isPlaying) {
+                  event.target.loadVideoById(track.videoId);
+                } else {
+                  event.target.cueVideoById(track.videoId);
+                }
               }
             } catch (err) {
               console.warn("[Geekify Player] Error in onReady:", err);
@@ -97,12 +103,12 @@ export function AudioEngine() {
             if (!isMountedRef.current) return;
             console.warn("[Geekify Player] Error:", err);
             if (err && (err.data === 150 || err.data === 101)) {
-              setPlayError("Track is restricted by copyright owner. Skipping to next song...");
+              setPlayError("Track restricted by copyright owner. Trying next song...");
               setTimeout(() => {
                 if (isMountedRef.current) next();
               }, 1200);
             } else {
-              setPlayError("Playback error. Skipping to next song...");
+              setPlayError("Playback error. Trying next song...");
               setTimeout(() => {
                 if (isMountedRef.current) next();
               }, 1500);
@@ -186,6 +192,10 @@ export function AudioEngine() {
 
   // Handle Play/Pause
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     const player = playerRef.current;
     if (!player || !isReadyRef.current || !currentTrack) return;
 
@@ -319,12 +329,14 @@ export function AudioEngine() {
       ref={containerRef}
       style={{
         position: "fixed",
-        bottom: "-500px",
-        right: "-500px",
+        bottom: 0,
+        right: 0,
         width: "200px",
         height: "200px",
         zIndex: -999,
+        opacity: 0.001,
         pointerEvents: "none",
+        overflow: "hidden",
       }}
     />
   );
