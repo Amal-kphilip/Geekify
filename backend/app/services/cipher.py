@@ -13,11 +13,9 @@ _YDL_OPTS: dict[str, Any] = {
     "no_warnings": True,
     "noprogress": True,
     "skip_download": True,
-    "format": "bestaudio/best",
-    "extract_flat": False,
     "extractor_args": {
         "youtube": {
-            "player_client": ["android", "ios", "mweb", "web"],
+            "player_client": ["tvhtml5", "android"],
         }
     },
 }
@@ -29,7 +27,7 @@ def parse_signature_cipher(cipher: str) -> dict[str, str]:
 
 
 def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
-    """Return (url, mime_type) using yt-dlp, always picking the highest quality audio format."""
+    """Return (url, mime_type) using yt-dlp, picking the best playable audio stream."""
     with yt_dlp.YoutubeDL(_YDL_OPTS) as ydl:
         info = ydl.extract_info(
             f"https://www.youtube.com/watch?v={video_id}", download=False
@@ -38,39 +36,44 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
         raise RuntimeError("yt-dlp returned no metadata")
 
     formats = info.get("formats") or []
-    # Filter for pure audio streams with direct URLs
-    audio_formats = [
+
+    # 1. First preference: pure audio streams (no video track, e.g. opus / m4a)
+    pure_audio = [
         f
         for f in formats
         if f.get("url")
-        and (
-            f.get("vcodec") in (None, "none")
-            or "audio" in str(f.get("mimeType", "")).lower()
-            or (f.get("acodec") and f.get("acodec") != "none")
-        )
+        and not f.get("ext", "").startswith("mhtml")
+        and not str(f.get("format_id", "")).startswith("sb")
+        and f.get("vcodec") in (None, "none")
+        and f.get("acodec") not in (None, "none")
     ]
-    # Sort by audio bitrate
-    audio_formats.sort(
+    pure_audio.sort(
         key=lambda f: float(f.get("abr") or f.get("tbr") or f.get("bitrate") or 0),
         reverse=True,
     )
-
-    if audio_formats:
-        best_fmt = audio_formats[0]
-        mime = best_fmt.get("mimetype") or best_fmt.get("ext") or "audio/webm"
+    if pure_audio:
+        best_fmt = pure_audio[0]
+        mime = best_fmt.get("mimetype") or ("audio/mp4" if best_fmt.get("ext") == "m4a" else "audio/webm")
         return best_fmt["url"], _guess_mime(mime, best_fmt["url"])
 
-    # Fallback to any format with a direct url
-    direct_formats = [f for f in formats if f.get("url")]
-    if direct_formats:
-        best_fmt = direct_formats[0]
-        mime = best_fmt.get("mimetype") or best_fmt.get("ext") or "audio/webm"
-        return best_fmt["url"], _guess_mime(mime, best_fmt["url"])
+    # 2. Second preference: muxed streams with audio (e.g. format 18 AAC)
+    muxed_audio = [
+        f
+        for f in formats
+        if f.get("url")
+        and not f.get("ext", "").startswith("mhtml")
+        and not str(f.get("format_id", "")).startswith("sb")
+        and f.get("acodec") not in (None, "none")
+    ]
+    if muxed_audio:
+        best_fmt = muxed_audio[0]
+        mime = "audio/mp4" if best_fmt.get("ext") in ("mp4", "m4a") else "audio/webm"
+        return best_fmt["url"], mime
 
+    # 3. Direct info url fallback
     url = info.get("url")
     if url:
-        mime = info.get("mimetype") or info.get("ext") or "audio/webm"
-        return url, _guess_mime(mime, url)
+        return url, _guess_mime(info.get("ext") or "audio/webm", url)
 
     raise RuntimeError("yt-dlp could not resolve an audio URL")
 
