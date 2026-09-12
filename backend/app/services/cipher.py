@@ -8,19 +8,26 @@ import yt_dlp
 
 logger = logging.getLogger(__name__)
 
-_YDL_OPTS: dict[str, Any] = {
+_MUSIC_OPTS: dict[str, Any] = {
     "quiet": True,
     "no_warnings": True,
     "noprogress": True,
     "skip_download": True,
     "extractor_args": {
         "youtube": {
-            "player_client": [
-                "android_creator",
-                "ios_creator",
-                "android_embedded",
-                "tv_embedded",
-            ],
+            "player_client": ["android_music", "ios_music"],
+        }
+    },
+}
+
+_VIDEO_OPTS: dict[str, Any] = {
+    "quiet": True,
+    "no_warnings": True,
+    "noprogress": True,
+    "skip_download": True,
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["android_vr", "android", "tv_embedded"],
         }
     },
 }
@@ -31,18 +38,10 @@ def parse_signature_cipher(cipher: str) -> dict[str, str]:
     return {k: v[0] if v else "" for k, v in parsed.items()}
 
 
-def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
-    """Return (url, mime_type) using yt-dlp, picking the best playable audio stream."""
-    with yt_dlp.YoutubeDL(_YDL_OPTS) as ydl:
-        info = ydl.extract_info(
-            f"https://music.youtube.com/watch?v={video_id}", download=False
-        )
-    if not info:
-        raise RuntimeError("yt-dlp returned no metadata")
-
+def _pick_best_audio_format(info: dict) -> tuple[str, str] | tuple[None, None]:
     formats = info.get("formats") or []
 
-    # 1. First preference: pure audio streams (no video track, e.g. opus / m4a)
+    # 1. First preference: pure audio streams (no video track, e.g. opus 160k / m4a 128k)
     pure_audio = [
         f
         for f in formats
@@ -80,7 +79,38 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
     if url:
         return url, _guess_mime(info.get("ext") or "audio/webm", url)
 
-    raise RuntimeError("yt-dlp could not resolve an audio URL")
+    return None, None
+
+
+def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
+    """Return (url, mime_type) using yt-dlp, picking the best playable audio stream."""
+    # 1. Primary: YouTube Music endpoint (fastest, high bitrate, no bot blocks)
+    try:
+        with yt_dlp.YoutubeDL(_MUSIC_OPTS) as ydl:
+            info = ydl.extract_info(
+                f"https://music.youtube.com/watch?v={video_id}", download=False
+            )
+            if info:
+                url, mime = _pick_best_audio_format(info)
+                if url and mime:
+                    return url, mime
+    except Exception as exc:
+        logger.info("YouTube Music extraction fallback for %s: %s", video_id, exc)
+
+    # 2. Secondary: Standard YouTube endpoint with mobile VR/embedded clients
+    try:
+        with yt_dlp.YoutubeDL(_VIDEO_OPTS) as ydl:
+            info = ydl.extract_info(
+                f"https://www.youtube.com/watch?v={video_id}", download=False
+            )
+            if info:
+                url, mime = _pick_best_audio_format(info)
+                if url and mime:
+                    return url, mime
+    except Exception as exc:
+        logger.warning("YouTube Video extraction also failed for %s: %s", video_id, exc)
+
+    raise RuntimeError(f"Could not resolve an audio URL for {video_id}")
 
 
 from app.models import ArtistRef, Thumbnail, Track
@@ -88,10 +118,17 @@ from app.models import ArtistRef, Thumbnail, Track
 
 def extract_track_with_ytdlp(video_id: str) -> Track:
     """Return a Track model populated from yt-dlp metadata."""
-    with yt_dlp.YoutubeDL(_YDL_OPTS) as ydl:
-        info = ydl.extract_info(
-            f"https://music.youtube.com/watch?v={video_id}", download=False
-        )
+    try:
+        with yt_dlp.YoutubeDL(_MUSIC_OPTS) as ydl:
+            info = ydl.extract_info(
+                f"https://music.youtube.com/watch?v={video_id}", download=False
+            )
+    except Exception:
+        with yt_dlp.YoutubeDL(_VIDEO_OPTS) as ydl:
+            info = ydl.extract_info(
+                f"https://www.youtube.com/watch?v={video_id}", download=False
+            )
+
     if not info:
         raise RuntimeError("yt-dlp returned no metadata")
 
