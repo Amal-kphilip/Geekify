@@ -35,7 +35,7 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
     """Return (url, mime_type) using yt-dlp, picking the best playable audio stream."""
     with yt_dlp.YoutubeDL(_YDL_OPTS) as ydl:
         info = ydl.extract_info(
-            f"https://www.youtube.com/watch?v={video_id}", download=False
+            f"https://music.youtube.com/watch?v={video_id}", download=False
         )
     if not info:
         raise RuntimeError("yt-dlp returned no metadata")
@@ -90,7 +90,7 @@ def extract_track_with_ytdlp(video_id: str) -> Track:
     """Return a Track model populated from yt-dlp metadata."""
     with yt_dlp.YoutubeDL(_YDL_OPTS) as ydl:
         info = ydl.extract_info(
-            f"https://www.youtube.com/watch?v={video_id}", download=False
+            f"https://music.youtube.com/watch?v={video_id}", download=False
         )
     if not info:
         raise RuntimeError("yt-dlp returned no metadata")
