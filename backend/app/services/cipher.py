@@ -15,7 +15,12 @@ _YDL_OPTS: dict[str, Any] = {
     "skip_download": True,
     "format": "bestaudio/best",
     "extract_flat": False,
-    "js_runtimes": {"node": {}},
+    # Use Android client — returns unciphered URLs, no Node.js needed
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["android", "web"],
+        }
+    },
 }
 
 
