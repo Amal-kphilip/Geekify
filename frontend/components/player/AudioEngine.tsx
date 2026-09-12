@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef } from "react";
 import { api } from "@/lib/api";
@@ -15,6 +15,7 @@ export function AudioEngine() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const isReadyRef = useRef(false);
+  const isMountedRef = useRef(true);
   const currentVideoIdRef = useRef<string | null>(null);
   const seekLock = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,20 +34,25 @@ export function AudioEngine() {
   const setPlayError = usePlayerStore((s) => s.setPlayError);
   const setAnalyserBins = usePlayerStore((s) => s.setAnalyserBins);
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Initialize YouTube IFrame Player API
   useEffect(() => {
-    let isMounted = true;
-
     function initPlayer() {
       if (!window.YT || !window.YT.Player) return;
       if (playerRef.current) return;
       if (!containerRef.current) return;
 
       const mountPoint = document.createElement("div");
-      containerRef.current.innerHTML = "";
+      mountPoint.id = "yt-mount-" + Math.random().toString(36).substring(2, 9);
       containerRef.current.appendChild(mountPoint);
 
-      playerRef.current = new window.YT.Player(mountPoint, {
+      playerRef.current = new window.YT.Player(mountPoint.id, {
         height: "200",
         width: "200",
         playerVars: {
@@ -61,7 +67,7 @@ export function AudioEngine() {
         },
         events: {
           onReady: (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (!isMounted) return;
+            if (!isMountedRef.current) return;
             isReadyRef.current = true;
             try {
               event.target.setVolume(Math.round(usePlayerStore.getState().volume * 100));
@@ -71,18 +77,14 @@ export function AudioEngine() {
               const track = usePlayerStore.getState().currentTrack;
               if (track) {
                 currentVideoIdRef.current = track.videoId;
-                if (usePlayerStore.getState().isPlaying) {
-                  event.target.loadVideoById(track.videoId);
-                } else {
-                  event.target.cueVideoById(track.videoId);
-                }
+                event.target.loadVideoById(track.videoId);
               }
             } catch (err) {
-              console.warn("Error in onReady:", err);
+              console.warn("[Geekify Player] Error in onReady:", err);
             }
           },
           onStateChange: (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (!isMounted) return;
+            if (!isMountedRef.current) return;
             // 1: PLAYING, 2: PAUSED, 0: ENDED, 3: BUFFERING
             if (event.data === 1) {
               setPlaying(true);
@@ -92,17 +94,17 @@ export function AudioEngine() {
             }
           },
           onError: (err: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (!isMounted) return;
-            console.warn("YouTube player error:", err);
+            if (!isMountedRef.current) return;
+            console.warn("[Geekify Player] Error:", err);
             if (err && (err.data === 150 || err.data === 101)) {
-              setPlayError("Track is restricted by copyright owner. Skipping to next...");
+              setPlayError("Track is restricted by copyright owner. Skipping to next song...");
               setTimeout(() => {
-                if (isMounted) next();
+                if (isMountedRef.current) next();
               }, 1200);
             } else {
               setPlayError("Playback error. Skipping to next song...");
               setTimeout(() => {
-                if (isMounted) next();
+                if (isMountedRef.current) next();
               }, 1500);
             }
           },
@@ -144,7 +146,6 @@ export function AudioEngine() {
     }, 250);
 
     return () => {
-      isMounted = false;
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [next, setPlaying, setProgress, setPlayError]);
@@ -159,14 +160,10 @@ export function AudioEngine() {
       try {
         if (currentVideoIdRef.current !== currentTrack.videoId) {
           currentVideoIdRef.current = currentTrack.videoId;
-          if (isPlaying) {
-            player.loadVideoById(currentTrack.videoId);
-          } else {
-            player.cueVideoById(currentTrack.videoId);
-          }
+          player.loadVideoById(currentTrack.videoId);
         }
       } catch (err) {
-        console.warn("Track change error:", err);
+        console.warn("[Geekify Player] Track change error:", err);
       }
     }
 
@@ -203,7 +200,7 @@ export function AudioEngine() {
         }
       }
     } catch (err) {
-      console.warn("Play/pause error:", err);
+      console.warn("[Geekify Player] Play/pause error:", err);
     }
   }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -322,14 +319,12 @@ export function AudioEngine() {
       ref={containerRef}
       style={{
         position: "fixed",
-        bottom: 0,
-        right: 0,
+        bottom: "-500px",
+        right: "-500px",
         width: "200px",
         height: "200px",
         zIndex: -999,
-        opacity: 0.001,
         pointerEvents: "none",
-        overflow: "hidden",
       }}
     />
   );
