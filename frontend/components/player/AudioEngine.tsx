@@ -1,15 +1,22 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef } from "react";
-import { api, streamUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
+declare global {
+  interface Window {
+    YT: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
+
 export function AudioEngine() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const ctxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
+  const playerRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const isReadyRef = useRef(false);
   const rafRef = useRef<number>(0);
   const seekLock = useRef(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -24,59 +31,120 @@ export function AudioEngine() {
   const setPlayError = usePlayerStore((s) => s.setPlayError);
   const setAnalyserBins = usePlayerStore((s) => s.setAnalyserBins);
 
+  // Initialize YouTube IFrame Player API
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    let isMounted = true;
 
-    const onTime = () => {
-      if (!seekLock.current) setProgress(audio.currentTime, audio.duration || 0);
-    };
-    const onEnded = () => next();
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onErr = () => {
-      setPlayError("This track could not be streamed. It may be region-locked, age-restricted, or removed.");
-    };
+    function initPlayer() {
+      if (!window.YT || !window.YT.Player) return;
+      if (playerRef.current) return;
 
-    audio.addEventListener("timeupdate", onTime);
-    audio.addEventListener("durationchange", onTime);
-    audio.addEventListener("ended", onEnded);
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
-    audio.addEventListener("error", onErr);
-    return () => {
-      audio.removeEventListener("timeupdate", onTime);
-      audio.removeEventListener("durationchange", onTime);
-      audio.removeEventListener("ended", onEnded);
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
-      audio.removeEventListener("error", onErr);
-    };
-  }, [next, setPlaying, setProgress, setPlayError]);
+      playerRef.current = new window.YT.Player("youtube-player-element", {
+        height: "1",
+        width: "1",
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          playsinline: 1,
+          origin: typeof window !== "undefined" ? window.location.origin : "",
+        },
+        events: {
+          onReady: (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+            if (!isMounted) return;
+            isReadyRef.current = true;
+            event.target.setVolume(usePlayerStore.getState().volume * 100);
+            if (usePlayerStore.getState().muted) {
+              event.target.mute();
+            }
+            const track = usePlayerStore.getState().currentTrack;
+            if (track) {
+              if (usePlayerStore.getState().isPlaying) {
+                event.target.loadVideoById(track.videoId);
+              } else {
+                event.target.cueVideoById(track.videoId);
+              }
+            }
+          },
+          onStateChange: (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+            if (!isMounted) return;
+            // YT.PlayerState: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (cued)
+            if (event.data === 1) {
+              setPlaying(true);
+              setPlayError(null);
+            } else if (event.data === 2) {
+              setPlaying(false);
+            } else if (event.data === 0) {
+              next();
+            }
+          },
+          onError: () => {
+            if (!isMounted) return;
+            setPlayError("This track could not be streamed. It may be restricted or removed.");
+          },
+        },
+      });
+    }
 
-  const playPromiseRef = useRef<Promise<void> | null>(null);
+    if (window.YT && window.YT.Player) {
+      initPlayer();
+    } else {
+      const prevCallback = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (prevCallback) prevCallback();
+        initPlayer();
+      };
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !currentTrack) return;
-    
-    setPlayError(null);
-    audio.src = streamUrl(currentTrack.videoId);
-    audio.load();
-
-    if (isPlaying) {
-      ensureGraph();
-      const p = audio.play();
-      if (p !== undefined) {
-        playPromiseRef.current = p;
-        p.catch((err) => {
-          if (err.name !== "AbortError") {
-            setPlayError("Click play to start audio.");
-          }
-        });
+      if (!document.getElementById("youtube-iframe-api-script")) {
+        const tag = document.createElement("script");
+        tag.id = "youtube-iframe-api-script";
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.body.appendChild(tag);
       }
     }
 
+    // Progress polling loop
+    intervalRef.current = setInterval(() => {
+      const player = playerRef.current;
+      if (player && isReadyRef.current && typeof player.getCurrentTime === "function") {
+        try {
+          const currentTime = player.getCurrentTime() || 0;
+          const duration = player.getDuration() || 0;
+          if (!seekLock.current) {
+            setProgress(currentTime, duration);
+          }
+        } catch {
+          // Player not ready
+        }
+      }
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [next, setPlaying, setProgress, setPlayError]);
+
+  // Handle Track Change
+  useEffect(() => {
+    if (!currentTrack) return;
+    setPlayError(null);
+
+    const player = playerRef.current;
+    if (player && isReadyRef.current) {
+      try {
+        if (isPlaying) {
+          player.loadVideoById(currentTrack.videoId);
+        } else {
+          player.cueVideoById(currentTrack.videoId);
+        }
+      } catch {
+        // Player not ready
+      }
+    }
+
+    // Autoplay related queue recommendations
     const q = usePlayerStore.getState().queue;
     if (q.length <= 1 && currentTrack) {
       api
@@ -93,54 +161,57 @@ export function AudioEngine() {
     }
   }, [currentTrack?.videoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handle Play/Pause
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !currentTrack) return;
-    if (isPlaying) {
-      ensureGraph();
-      const p = audio.play();
-      if (p !== undefined) {
-        playPromiseRef.current = p;
-        p.catch((err) => {
-          if (err.name !== "AbortError") {
-            setPlayError("Click play to start audio.");
-          }
-        });
-      }
-    } else {
-      if (playPromiseRef.current) {
-        playPromiseRef.current
-          .then(() => {
-            audio.pause();
-          })
-          .catch(() => {
-            audio.pause();
-          });
+    const player = playerRef.current;
+    if (!player || !isReadyRef.current || !currentTrack) return;
+
+    try {
+      if (isPlaying) {
+        player.playVideo();
       } else {
-        audio.pause();
+        player.pauseVideo();
       }
+    } catch {
+      // Player not ready
     }
   }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handle Volume & Mute
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.volume = volume;
-    audio.muted = muted;
+    const player = playerRef.current;
+    if (!player || !isReadyRef.current) return;
+    try {
+      player.setVolume(Math.round(volume * 100));
+      if (muted) {
+        player.mute();
+      } else {
+        player.unMute();
+      }
+    } catch {
+      // Ignore
+    }
   }, [volume, muted]);
 
+  // Handle Seek
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (Math.abs(audio.currentTime - progress) > 1.5) {
-      seekLock.current = true;
-      audio.currentTime = progress;
-      window.setTimeout(() => {
-        seekLock.current = false;
-      }, 250);
+    const player = playerRef.current;
+    if (!player || !isReadyRef.current || typeof player.getCurrentTime !== "function") return;
+    try {
+      const cur = player.getCurrentTime() || 0;
+      if (Math.abs(cur - progress) > 2) {
+        seekLock.current = true;
+        player.seekTo(progress, true);
+        window.setTimeout(() => {
+          seekLock.current = false;
+        }, 300);
+      }
+    } catch {
+      // Ignore
     }
   }, [progress]);
 
+  // MediaSession API integration
   useEffect(() => {
     const track = currentTrack;
     if (!track || !("mediaSession" in navigator)) return;
@@ -160,34 +231,9 @@ export function AudioEngine() {
     });
   }, [currentTrack, next, previous]);
 
-  function ensureGraph() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    try {
-      if (!ctxRef.current) {
-        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (AudioCtx) {
-          const ctx = new AudioCtx();
-          ctxRef.current = ctx;
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 64;
-          analyserRef.current = analyser;
-        }
-      }
-      if (ctxRef.current && ctxRef.current.state === "suspended") {
-        ctxRef.current.resume().catch(() => undefined);
-      }
-    } catch {
-      // Ignore Web Audio errors; simulated bars will take over
-    }
-    tick();
-  }
-
-  function tick() {
-    const analyser = analyserRef.current;
-    const data = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
+  // Equalizer visualizer wave animation loop
+  useEffect(() => {
     let step = 0;
-
     const loop = () => {
       step += 0.08;
       const playing = usePlayerStore.getState().isPlaying;
@@ -196,41 +242,23 @@ export function AudioEngine() {
         return;
       }
 
-      let bins: number[] = [];
-      let hasSignal = false;
-
-      if (analyser && data) {
-        analyser.getByteFrequencyData(data);
-        const bands = 5;
-        const slice = Math.max(1, Math.floor(data.length / bands));
-        for (let i = 0; i < bands; i++) {
-          let sum = 0;
-          for (let j = 0; j < slice; j++) sum += data[i * slice + j] || 0;
-          const val = Math.min(1, sum / slice / 180);
-          if (val > 0.05) hasSignal = true;
-          bins.push(val);
-        }
-      }
-
-      if (!hasSignal && playing) {
-        // Dynamic simulated wave when playing
-        bins = [
-          0.3 + 0.4 * Math.abs(Math.sin(step)),
-          0.4 + 0.5 * Math.abs(Math.sin(step * 1.3 + 1)),
-          0.5 + 0.5 * Math.abs(Math.cos(step * 0.9 + 2)),
-          0.35 + 0.45 * Math.abs(Math.sin(step * 1.5 + 3)),
-          0.25 + 0.35 * Math.abs(Math.cos(step * 1.1 + 4)),
-        ];
-      }
+      const bins = [
+        0.3 + 0.4 * Math.abs(Math.sin(step)),
+        0.4 + 0.5 * Math.abs(Math.sin(step * 1.3 + 1)),
+        0.5 + 0.5 * Math.abs(Math.cos(step * 0.9 + 2)),
+        0.35 + 0.45 * Math.abs(Math.sin(step * 1.5 + 3)),
+        0.25 + 0.35 * Math.abs(Math.cos(step * 1.1 + 4)),
+      ];
 
       setAnalyserBins(bins);
       rafRef.current = requestAnimationFrame(loop);
     };
 
-    cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(loop);
-  }
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [setAnalyserBins]);
 
+  // Keyboard controls
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -245,23 +273,28 @@ export function AudioEngine() {
         s.seek(Math.max(0, s.progress - 5));
       } else if (e.code === "ArrowUp") {
         e.preventDefault();
-        s.setVolume(s.volume + 0.05);
+        s.setVolume(Math.min(1, s.volume + 0.05));
       } else if (e.code === "ArrowDown") {
         e.preventDefault();
-        s.setVolume(s.volume - 0.05);
+        s.setVolume(Math.max(0, s.volume - 0.05));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [togglePlay]);
 
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
-
   return (
-    <audio
-      ref={audioRef}
-      preload="auto"
-      className="hidden"
+    <div
+      id="youtube-player-element"
+      style={{
+        position: "fixed",
+        bottom: -9999,
+        left: -9999,
+        width: "1px",
+        height: "1px",
+        opacity: 0,
+        pointerEvents: "none",
+      }}
     />
   );
 }
