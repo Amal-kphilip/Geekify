@@ -1,28 +1,14 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { useEffect, useRef } from "react";
+import { api, streamUrl } from "@/lib/api";
 import { usePlayerStore } from "@/store/usePlayerStore";
-import { Minimize2, Maximize2, Music } from "lucide-react";
-
-declare global {
-  interface Window {
-    YT: any; // eslint-disable-line @typescript-eslint/no-explicit-any
-    onYouTubeIframeAPIReady: () => void;
-  }
-}
 
 export function AudioEngine() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const playerRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const isReadyRef = useRef(false);
-  const isMountedRef = useRef(true);
-  const currentVideoIdRef = useRef<string | null>(null);
-  const isInitialMount = useRef(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playPromiseRef = useRef<Promise<void> | null>(null);
   const seekLock = useRef(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const rafRef = useRef<number>(0);
-  const [minimized, setMinimized] = useState(false);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -37,145 +23,65 @@ export function AudioEngine() {
   const setPlayError = usePlayerStore((s) => s.setPlayError);
   const setAnalyserBins = usePlayerStore((s) => s.setAnalyserBins);
 
+  // Audio element event listeners
   useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onTime = () => {
+      if (!seekLock.current && audio.duration) {
+        setProgress(audio.currentTime, audio.duration);
+      }
     };
-  }, []);
+    const onEnded = () => next();
+    const onPlay = () => {
+      setPlaying(true);
+      setPlayError(null);
+    };
+    const onPause = () => setPlaying(false);
+    const onErr = () => {
+      setPlayError("This track could not be streamed. It may be restricted or unavailable.");
+    };
 
-  // Initialize YouTube IFrame Player API
-  useEffect(() => {
-    function initPlayer() {
-      if (!window.YT || !window.YT.Player) return;
-      if (playerRef.current) return;
-      if (!containerRef.current) return;
-
-      const mountPoint = document.createElement("div");
-      mountPoint.id = "yt-mount-player";
-      containerRef.current.innerHTML = "";
-      containerRef.current.appendChild(mountPoint);
-
-      playerRef.current = new window.YT.Player("yt-mount-player", {
-        height: "100%",
-        width: "100%",
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          playsinline: 1,
-          enablejsapi: 1,
-          iv_load_policy: 3,
-          rel: 0,
-        },
-        events: {
-          onReady: (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (!isMountedRef.current) return;
-            isReadyRef.current = true;
-            try {
-              event.target.setVolume(Math.round(usePlayerStore.getState().volume * 100));
-              if (usePlayerStore.getState().muted) {
-                event.target.mute();
-              }
-              const track = usePlayerStore.getState().currentTrack;
-              if (track) {
-                currentVideoIdRef.current = track.videoId;
-                if (usePlayerStore.getState().isPlaying) {
-                  event.target.loadVideoById(track.videoId);
-                } else {
-                  event.target.cueVideoById(track.videoId);
-                }
-              }
-            } catch (err) {
-              console.warn("[Geekify Player] Error in onReady:", err);
-            }
-          },
-          onStateChange: (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (!isMountedRef.current) return;
-            // 1: PLAYING, 2: PAUSED, 0: ENDED, 3: BUFFERING
-            if (event.data === 1) {
-              setPlaying(true);
-              setPlayError(null);
-            } else if (event.data === 0) {
-              next();
-            }
-          },
-          onError: (err: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (!isMountedRef.current) return;
-            console.warn("[Geekify Player] Error:", err);
-            if (err && (err.data === 150 || err.data === 101)) {
-              setPlayError("Track restricted by copyright owner. Trying next song...");
-              setTimeout(() => {
-                if (isMountedRef.current) next();
-              }, 1200);
-            } else {
-              setPlayError("Playback error. Trying next song...");
-              setTimeout(() => {
-                if (isMountedRef.current) next();
-              }, 1500);
-            }
-          },
-        },
-      });
-    }
-
-    if (window.YT && window.YT.Player) {
-      initPlayer();
-    } else {
-      const prevCallback = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
-        if (prevCallback) prevCallback();
-        initPlayer();
-      };
-
-      if (!document.getElementById("youtube-iframe-api-script")) {
-        const tag = document.createElement("script");
-        tag.id = "youtube-iframe-api-script";
-        tag.src = "https://www.youtube.com/iframe_api";
-        document.body.appendChild(tag);
-      }
-    }
-
-    // Progress polling loop
-    intervalRef.current = setInterval(() => {
-      const player = playerRef.current;
-      if (player && isReadyRef.current && typeof player.getCurrentTime === "function") {
-        try {
-          const currentTime = player.getCurrentTime() || 0;
-          const duration = player.getDuration() || 0;
-          if (!seekLock.current && duration > 0) {
-            setProgress(currentTime, duration);
-          }
-        } catch {
-          // Player not ready
-        }
-      }
-    }, 250);
+    audio.addEventListener("timeupdate", onTime);
+    audio.addEventListener("durationchange", onTime);
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
+    audio.addEventListener("error", onErr);
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      audio.removeEventListener("timeupdate", onTime);
+      audio.removeEventListener("durationchange", onTime);
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("error", onErr);
     };
   }, [next, setPlaying, setProgress, setPlayError]);
 
-  // Handle Track Change
+  // Handle Track Changes
   useEffect(() => {
-    if (!currentTrack) return;
-    setPlayError(null);
+    const audio = audioRef.current;
+    if (!audio || !currentTrack) return;
 
-    const player = playerRef.current;
-    if (player && isReadyRef.current && typeof player.loadVideoById === "function") {
-      try {
-        if (currentVideoIdRef.current !== currentTrack.videoId) {
-          currentVideoIdRef.current = currentTrack.videoId;
-          player.loadVideoById(currentTrack.videoId);
-        }
-      } catch (err) {
-        console.warn("[Geekify Player] Track change error:", err);
+    setPlayError(null);
+    audio.src = streamUrl(currentTrack.videoId);
+    audio.load();
+
+    if (isPlaying) {
+      const p = audio.play();
+      if (p !== undefined) {
+        playPromiseRef.current = p;
+        p.catch((err) => {
+          if (err.name !== "AbortError") {
+            setPlayError("Click play to start audio.");
+          }
+        });
       }
     }
 
-    // Autoplay related queue recommendations
+    // Autoplay queue recommendations
     const q = usePlayerStore.getState().queue;
     if (q.length <= 1 && currentTrack) {
       api
@@ -194,63 +100,48 @@ export function AudioEngine() {
 
   // Handle Play/Pause
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    const player = playerRef.current;
-    if (!player || !isReadyRef.current || !currentTrack) return;
+    const audio = audioRef.current;
+    if (!audio || !currentTrack) return;
 
-    try {
-      if (isPlaying) {
-        if (typeof player.playVideo === "function") {
-          player.playVideo();
-        }
-      } else {
-        if (typeof player.pauseVideo === "function") {
-          player.pauseVideo();
-        }
+    if (isPlaying) {
+      const p = audio.play();
+      if (p !== undefined) {
+        playPromiseRef.current = p;
+        p.catch((err) => {
+          if (err.name !== "AbortError") {
+            setPlayError("Click play to start audio.");
+          }
+        });
       }
-    } catch (err) {
-      console.warn("[Geekify Player] Play/pause error:", err);
+    } else {
+      if (playPromiseRef.current) {
+        playPromiseRef.current
+          .then(() => audio.pause())
+          .catch(() => audio.pause());
+      } else {
+        audio.pause();
+      }
     }
   }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle Volume & Mute
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player || !isReadyRef.current) return;
-    try {
-      if (typeof player.setVolume === "function") {
-        player.setVolume(Math.round(volume * 100));
-      }
-      if (muted && typeof player.mute === "function") {
-        player.mute();
-      } else if (!muted && typeof player.unMute === "function") {
-        player.unMute();
-      }
-    } catch {
-      // Ignore
-    }
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = volume;
+    audio.muted = muted;
   }, [volume, muted]);
 
   // Handle Seek
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player || !isReadyRef.current || typeof player.getCurrentTime !== "function") return;
-    try {
-      const cur = player.getCurrentTime() || 0;
-      if (Math.abs(cur - progress) > 2) {
-        seekLock.current = true;
-        if (typeof player.seekTo === "function") {
-          player.seekTo(progress, true);
-        }
-        window.setTimeout(() => {
-          seekLock.current = false;
-        }, 350);
-      }
-    } catch {
-      // Ignore
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (Math.abs(audio.currentTime - progress) > 1.5) {
+      seekLock.current = true;
+      audio.currentTime = progress;
+      window.setTimeout(() => {
+        seekLock.current = false;
+      }, 250);
     }
   }, [progress]);
 
@@ -326,37 +217,11 @@ export function AudioEngine() {
     return () => window.removeEventListener("keydown", onKey);
   }, [togglePlay]);
 
-  if (!currentTrack) {
-    return <div ref={containerRef} className="hidden" />;
-  }
-
   return (
-    <div
-      className={`fixed z-30 transition-all duration-300 ${
-        minimized
-          ? "bottom-24 right-4 h-10 w-36"
-          : "bottom-24 right-4 h-36 w-60 md:bottom-28 md:right-6 md:h-40 md:w-72"
-      } glass-strong overflow-hidden rounded-2xl border border-white/20 shadow-2xl backdrop-blur-xl`}
-    >
-      <div className="flex h-6 items-center justify-between bg-black/60 px-2 text-[10px] text-white/70">
-        <span className="flex items-center gap-1 font-medium text-emerald-400">
-          <Music className="h-3 w-3" /> Live Audio Canvas
-        </span>
-        <button
-          type="button"
-          onClick={() => setMinimized(!minimized)}
-          className="rounded p-0.5 hover:bg-white/20 hover:text-white"
-          title={minimized ? "Expand canvas" : "Minimize canvas"}
-        >
-          {minimized ? <Maximize2 className="h-3 w-3" /> : <Minimize2 className="h-3 w-3" />}
-        </button>
-      </div>
-      <div
-        ref={containerRef}
-        className={`h-[calc(100%-1.5rem)] w-full transition-opacity ${
-          minimized ? "opacity-0 pointer-events-none" : "opacity-100"
-        }`}
-      />
-    </div>
+    <audio
+      ref={audioRef}
+      preload="auto"
+      className="hidden"
+    />
   );
 }

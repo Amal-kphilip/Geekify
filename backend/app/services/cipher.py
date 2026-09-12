@@ -16,10 +16,10 @@ _YDL_OPTS: dict[str, Any] = {
     "extractor_args": {
         "youtube": {
             "player_client": [
-                "android_vr",
-                "android",
-                "android_music",
-                "ios_music",
+                "android_creator",
+                "ios_creator",
+                "android_embedded",
+                "tv_embedded",
             ],
         }
     },
