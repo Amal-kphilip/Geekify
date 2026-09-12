@@ -1,0 +1,8 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+httpx>=0.23.3,<0.24.0
+innertube>=2.1.19
+yt-dlp>=2025.1.15
+cachetools>=5.3.0
+pydantic>=2.6.0
+python-multipart>=0.0.9
