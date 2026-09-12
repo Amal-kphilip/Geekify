@@ -1,8 +1,9 @@
 ﻿"use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { usePlayerStore } from "@/store/usePlayerStore";
+import { Minimize2, Maximize2, Music } from "lucide-react";
 
 declare global {
   interface Window {
@@ -21,6 +22,7 @@ export function AudioEngine() {
   const seekLock = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const rafRef = useRef<number>(0);
+  const [minimized, setMinimized] = useState(false);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -55,8 +57,8 @@ export function AudioEngine() {
       containerRef.current.appendChild(mountPoint);
 
       playerRef.current = new window.YT.Player("yt-mount-player", {
-        height: "200",
-        width: "200",
+        height: "100%",
+        width: "100%",
         playerVars: {
           autoplay: 1,
           controls: 0,
@@ -324,20 +326,37 @@ export function AudioEngine() {
     return () => window.removeEventListener("keydown", onKey);
   }, [togglePlay]);
 
+  if (!currentTrack) {
+    return <div ref={containerRef} className="hidden" />;
+  }
+
   return (
     <div
-      ref={containerRef}
-      style={{
-        position: "fixed",
-        bottom: 0,
-        right: 0,
-        width: "200px",
-        height: "200px",
-        zIndex: -999,
-        opacity: 0.001,
-        pointerEvents: "none",
-        overflow: "hidden",
-      }}
-    />
+      className={`fixed z-30 transition-all duration-300 ${
+        minimized
+          ? "bottom-24 right-4 h-10 w-36"
+          : "bottom-24 right-4 h-36 w-60 md:bottom-28 md:right-6 md:h-40 md:w-72"
+      } glass-strong overflow-hidden rounded-2xl border border-white/20 shadow-2xl backdrop-blur-xl`}
+    >
+      <div className="flex h-6 items-center justify-between bg-black/60 px-2 text-[10px] text-white/70">
+        <span className="flex items-center gap-1 font-medium text-emerald-400">
+          <Music className="h-3 w-3" /> Live Audio Canvas
+        </span>
+        <button
+          type="button"
+          onClick={() => setMinimized(!minimized)}
+          className="rounded p-0.5 hover:bg-white/20 hover:text-white"
+          title={minimized ? "Expand canvas" : "Minimize canvas"}
+        >
+          {minimized ? <Maximize2 className="h-3 w-3" /> : <Minimize2 className="h-3 w-3" />}
+        </button>
+      </div>
+      <div
+        ref={containerRef}
+        className={`h-[calc(100%-1.5rem)] w-full transition-opacity ${
+          minimized ? "opacity-0 pointer-events-none" : "opacity-100"
+        }`}
+      />
+    </div>
   );
 }
