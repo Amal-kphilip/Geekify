@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import logging
+import base64
+import os
+from pathlib import Path
+import tempfile
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -8,29 +12,60 @@ import yt_dlp
 
 logger = logging.getLogger(__name__)
 
-_MUSIC_OPTS: dict[str, Any] = {
-    "quiet": True,
-    "no_warnings": True,
-    "noprogress": True,
-    "skip_download": True,
-    "extractor_args": {
-        "youtube": {
-            "player_client": ["android_music", "ios_music"],
-        }
-    },
-}
 
-_VIDEO_OPTS: dict[str, Any] = {
-    "quiet": True,
-    "no_warnings": True,
-    "noprogress": True,
-    "skip_download": True,
-    "extractor_args": {
-        "youtube": {
-            "player_client": ["android_vr", "android", "tv_embedded"],
-        }
-    },
-}
+def _get_cookie_file() -> str | None:
+    """Find or create a cookies file from env vars or standard paths."""
+    for candidate in [
+        os.environ.get("YOUTUBE_COOKIES_PATH"),
+        "cookies.txt",
+        "backend/cookies.txt",
+        str(Path(__file__).resolve().parent.parent.parent / "cookies.txt"),
+    ]:
+        if candidate and os.path.isfile(candidate):
+            return os.path.abspath(candidate)
+
+    # 1. Plain text cookies in env var
+    raw = os.environ.get("YOUTUBE_COOKIES")
+    if raw and len(raw.strip()) > 10:
+        path = os.path.join(tempfile.gettempdir(), "geekify_yt_cookies.txt")
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(raw)
+            return path
+        except Exception as err:
+            logger.warning("Failed writing YOUTUBE_COOKIES to %s: %s", path, err)
+
+    # 2. Base64 encoded cookies in env var
+    raw_b64 = os.environ.get("YOUTUBE_COOKIES_BASE64")
+    if raw_b64:
+        path = os.path.join(tempfile.gettempdir(), "geekify_yt_cookies.txt")
+        try:
+            decoded = base64.b64decode(raw_b64).decode("utf-8")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(decoded)
+            return path
+        except Exception as err:
+            logger.warning("Failed writing YOUTUBE_COOKIES_BASE64 to %s: %s", path, err)
+
+    return None
+
+
+def _get_ydl_opts(clients: list[str]) -> dict[str, Any]:
+    opts: dict[str, Any] = {
+        "quiet": True,
+        "no_warnings": True,
+        "noprogress": True,
+        "skip_download": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": clients,
+            }
+        },
+    }
+    cookie_file = _get_cookie_file()
+    if cookie_file:
+        opts["cookiefile"] = cookie_file
+    return opts
 
 
 def parse_signature_cipher(cipher: str) -> dict[str, str]:
@@ -86,9 +121,9 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
     """Return (url, mime_type) using yt-dlp, picking the best playable audio stream."""
     errs: list[str] = []
 
-    # 1. Primary: YouTube Music endpoint (fastest, high bitrate, no bot blocks)
+    # 1. Primary: YouTube Music endpoint (android_music, ios_music)
     try:
-        with yt_dlp.YoutubeDL(_MUSIC_OPTS) as ydl:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(["android_music", "ios_music"])) as ydl:
             info = ydl.extract_info(
                 f"https://music.youtube.com/watch?v={video_id}", download=False
             )
@@ -100,9 +135,9 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
     except Exception as exc:
         errs.append(f"music: {exc}")
 
-    # 2. Secondary: Standard YouTube endpoint with mobile VR/embedded clients
+    # 2. Secondary: Mobile & embedded clients on standard YouTube
     try:
-        with yt_dlp.YoutubeDL(_VIDEO_OPTS) as ydl:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(["android_creator", "safari", "android", "tv_embedded"])) as ydl:
             info = ydl.extract_info(
                 f"https://www.youtube.com/watch?v={video_id}", download=False
             )
@@ -114,6 +149,20 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
     except Exception as exc:
         errs.append(f"video: {exc}")
 
+    # 3. Tertiary: Generic fallback
+    try:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(["mweb", "web"])) as ydl:
+            info = ydl.extract_info(
+                f"https://www.youtube.com/watch?v={video_id}", download=False
+            )
+            if info:
+                url, mime = _pick_best_audio_format(info)
+                if url and mime:
+                    return url, mime
+                errs.append("generic: no format with direct url")
+    except Exception as exc:
+        errs.append(f"generic: {exc}")
+
     raise RuntimeError(f"Could not resolve audio for {video_id}: {'; '.join(errs)}")
 
 
@@ -123,12 +172,12 @@ from app.models import ArtistRef, Thumbnail, Track
 def extract_track_with_ytdlp(video_id: str) -> Track:
     """Return a Track model populated from yt-dlp metadata."""
     try:
-        with yt_dlp.YoutubeDL(_MUSIC_OPTS) as ydl:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(["android_music", "ios_music"])) as ydl:
             info = ydl.extract_info(
                 f"https://music.youtube.com/watch?v={video_id}", download=False
             )
     except Exception:
-        with yt_dlp.YoutubeDL(_VIDEO_OPTS) as ydl:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(["android_creator", "safari", "android", "tv_embedded"])) as ydl:
             info = ydl.extract_info(
                 f"https://www.youtube.com/watch?v={video_id}", download=False
             )
