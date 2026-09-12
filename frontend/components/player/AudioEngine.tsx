@@ -40,14 +40,15 @@ export function AudioEngine() {
       if (playerRef.current) return;
 
       playerRef.current = new window.YT.Player("youtube-player-element", {
-        height: "1",
-        width: "1",
+        height: "200",
+        width: "200",
         playerVars: {
-          autoplay: 0,
+          autoplay: 1,
           controls: 0,
           disablekb: 1,
           fs: 0,
           playsinline: 1,
+          enablejsapi: 1,
           origin: typeof window !== "undefined" ? window.location.origin : "",
         },
         events: {
@@ -69,12 +70,10 @@ export function AudioEngine() {
           },
           onStateChange: (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
             if (!isMounted) return;
-            // YT.PlayerState: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (cued)
+            // 1: PLAYING, 2: PAUSED, 0: ENDED, 3: BUFFERING
             if (event.data === 1) {
               setPlaying(true);
               setPlayError(null);
-            } else if (event.data === 2) {
-              setPlaying(false);
             } else if (event.data === 0) {
               next();
             }
@@ -111,7 +110,7 @@ export function AudioEngine() {
         try {
           const currentTime = player.getCurrentTime() || 0;
           const duration = player.getDuration() || 0;
-          if (!seekLock.current) {
+          if (!seekLock.current && duration > 0) {
             setProgress(currentTime, duration);
           }
         } catch {
@@ -285,16 +284,19 @@ export function AudioEngine() {
 
   return (
     <div
-      id="youtube-player-element"
       style={{
         position: "fixed",
-        bottom: -9999,
-        left: -9999,
-        width: "1px",
-        height: "1px",
-        opacity: 0,
+        bottom: 0,
+        right: 0,
+        width: "200px",
+        height: "200px",
+        zIndex: -999,
+        opacity: 0.001,
         pointerEvents: "none",
+        overflow: "hidden",
       }}
-    />
+    >
+      <div id="youtube-player-element" />
+    </div>
   );
 }
