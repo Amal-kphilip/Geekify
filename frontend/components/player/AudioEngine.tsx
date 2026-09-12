@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef } from "react";
 import { api } from "@/lib/api";
@@ -12,11 +12,13 @@ declare global {
 }
 
 export function AudioEngine() {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const isReadyRef = useRef(false);
-  const rafRef = useRef<number>(0);
+  const currentVideoIdRef = useRef<string | null>(null);
   const seekLock = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const rafRef = useRef<number>(0);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -38,8 +40,13 @@ export function AudioEngine() {
     function initPlayer() {
       if (!window.YT || !window.YT.Player) return;
       if (playerRef.current) return;
+      if (!containerRef.current) return;
 
-      playerRef.current = new window.YT.Player("youtube-player-element", {
+      const mountPoint = document.createElement("div");
+      containerRef.current.innerHTML = "";
+      containerRef.current.appendChild(mountPoint);
+
+      playerRef.current = new window.YT.Player(mountPoint, {
         height: "200",
         width: "200",
         playerVars: {
@@ -49,23 +56,29 @@ export function AudioEngine() {
           fs: 0,
           playsinline: 1,
           enablejsapi: 1,
-          origin: typeof window !== "undefined" ? window.location.origin : "",
+          iv_load_policy: 3,
+          rel: 0,
         },
         events: {
           onReady: (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
             if (!isMounted) return;
             isReadyRef.current = true;
-            event.target.setVolume(usePlayerStore.getState().volume * 100);
-            if (usePlayerStore.getState().muted) {
-              event.target.mute();
-            }
-            const track = usePlayerStore.getState().currentTrack;
-            if (track) {
-              if (usePlayerStore.getState().isPlaying) {
-                event.target.loadVideoById(track.videoId);
-              } else {
-                event.target.cueVideoById(track.videoId);
+            try {
+              event.target.setVolume(Math.round(usePlayerStore.getState().volume * 100));
+              if (usePlayerStore.getState().muted) {
+                event.target.mute();
               }
+              const track = usePlayerStore.getState().currentTrack;
+              if (track) {
+                currentVideoIdRef.current = track.videoId;
+                if (usePlayerStore.getState().isPlaying) {
+                  event.target.loadVideoById(track.videoId);
+                } else {
+                  event.target.cueVideoById(track.videoId);
+                }
+              }
+            } catch (err) {
+              console.warn("Error in onReady:", err);
             }
           },
           onStateChange: (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -78,9 +91,20 @@ export function AudioEngine() {
               next();
             }
           },
-          onError: () => {
+          onError: (err: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
             if (!isMounted) return;
-            setPlayError("This track could not be streamed. It may be restricted or removed.");
+            console.warn("YouTube player error:", err);
+            if (err && (err.data === 150 || err.data === 101)) {
+              setPlayError("Track is restricted by copyright owner. Skipping to next...");
+              setTimeout(() => {
+                if (isMounted) next();
+              }, 1200);
+            } else {
+              setPlayError("Playback error. Skipping to next song...");
+              setTimeout(() => {
+                if (isMounted) next();
+              }, 1500);
+            }
           },
         },
       });
@@ -131,15 +155,18 @@ export function AudioEngine() {
     setPlayError(null);
 
     const player = playerRef.current;
-    if (player && isReadyRef.current) {
+    if (player && isReadyRef.current && typeof player.loadVideoById === "function") {
       try {
-        if (isPlaying) {
-          player.loadVideoById(currentTrack.videoId);
-        } else {
-          player.cueVideoById(currentTrack.videoId);
+        if (currentVideoIdRef.current !== currentTrack.videoId) {
+          currentVideoIdRef.current = currentTrack.videoId;
+          if (isPlaying) {
+            player.loadVideoById(currentTrack.videoId);
+          } else {
+            player.cueVideoById(currentTrack.videoId);
+          }
         }
-      } catch {
-        // Player not ready
+      } catch (err) {
+        console.warn("Track change error:", err);
       }
     }
 
@@ -167,12 +194,16 @@ export function AudioEngine() {
 
     try {
       if (isPlaying) {
-        player.playVideo();
+        if (typeof player.playVideo === "function") {
+          player.playVideo();
+        }
       } else {
-        player.pauseVideo();
+        if (typeof player.pauseVideo === "function") {
+          player.pauseVideo();
+        }
       }
-    } catch {
-      // Player not ready
+    } catch (err) {
+      console.warn("Play/pause error:", err);
     }
   }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -181,10 +212,12 @@ export function AudioEngine() {
     const player = playerRef.current;
     if (!player || !isReadyRef.current) return;
     try {
-      player.setVolume(Math.round(volume * 100));
-      if (muted) {
+      if (typeof player.setVolume === "function") {
+        player.setVolume(Math.round(volume * 100));
+      }
+      if (muted && typeof player.mute === "function") {
         player.mute();
-      } else {
+      } else if (!muted && typeof player.unMute === "function") {
         player.unMute();
       }
     } catch {
@@ -200,10 +233,12 @@ export function AudioEngine() {
       const cur = player.getCurrentTime() || 0;
       if (Math.abs(cur - progress) > 2) {
         seekLock.current = true;
-        player.seekTo(progress, true);
+        if (typeof player.seekTo === "function") {
+          player.seekTo(progress, true);
+        }
         window.setTimeout(() => {
           seekLock.current = false;
-        }, 300);
+        }, 350);
       }
     } catch {
       // Ignore
@@ -284,6 +319,7 @@ export function AudioEngine() {
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: "fixed",
         bottom: 0,
@@ -295,8 +331,6 @@ export function AudioEngine() {
         pointerEvents: "none",
         overflow: "hidden",
       }}
-    >
-      <div id="youtube-player-element" />
-    </div>
+    />
   );
 }
