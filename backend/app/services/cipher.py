@@ -84,6 +84,8 @@ def _pick_best_audio_format(info: dict) -> tuple[str, str] | tuple[None, None]:
 
 def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
     """Return (url, mime_type) using yt-dlp, picking the best playable audio stream."""
+    errs: list[str] = []
+
     # 1. Primary: YouTube Music endpoint (fastest, high bitrate, no bot blocks)
     try:
         with yt_dlp.YoutubeDL(_MUSIC_OPTS) as ydl:
@@ -94,8 +96,9 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
                 url, mime = _pick_best_audio_format(info)
                 if url and mime:
                     return url, mime
+                errs.append("music: no format with direct url")
     except Exception as exc:
-        logger.info("YouTube Music extraction fallback for %s: %s", video_id, exc)
+        errs.append(f"music: {exc}")
 
     # 2. Secondary: Standard YouTube endpoint with mobile VR/embedded clients
     try:
@@ -107,10 +110,11 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
                 url, mime = _pick_best_audio_format(info)
                 if url and mime:
                     return url, mime
+                errs.append("video: no format with direct url")
     except Exception as exc:
-        logger.warning("YouTube Video extraction also failed for %s: %s", video_id, exc)
+        errs.append(f"video: {exc}")
 
-    raise RuntimeError(f"Could not resolve an audio URL for {video_id}")
+    raise RuntimeError(f"Could not resolve audio for {video_id}: {'; '.join(errs)}")
 
 
 from app.models import ArtistRef, Thumbnail, Track
