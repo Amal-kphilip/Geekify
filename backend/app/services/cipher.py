@@ -84,23 +84,29 @@ def cookies_configured() -> bool:
     return _get_cookie_file() is not None
 
 
-def _get_ydl_opts(clients: list[str]) -> dict[str, Any]:
+def _get_ydl_opts(clients: list[str], *, use_cookies: bool = True, ydl_logger: Any = None) -> dict[str, Any]:
     opts: dict[str, Any] = {
         "quiet": True,
-        "no_warnings": True,
+        "no_warnings": ydl_logger is None,
         "noprogress": True,
         "skip_download": True,
         "noplaylist": True,
         "socket_timeout": 20,
-        "extractor_args": {
-            "youtube": {
-                "player_client": clients,
-            }
-        },
+        # We only need metadata + URLs: never fail just because the default
+        # "bestvideo+bestaudio" selector found nothing; we pick formats ourselves.
+        "ignore_no_formats_error": True,
+        "format": "bestaudio/best",
+        # YouTube's web/tv clients need a JS runtime to solve signature challenges.
+        # Whichever of these is installed (pip install deno / node) will be used.
+        "js_runtimes": {"deno": {}, "node": {}},
+        "extractor_args": {"youtube": {"player_client": clients}},
     }
-    cookie_file = _get_cookie_file()
-    if cookie_file:
-        opts["cookiefile"] = cookie_file
+    if ydl_logger is not None:
+        opts["logger"] = ydl_logger
+    if use_cookies:
+        cookie_file = _get_cookie_file()
+        if cookie_file:
+            opts["cookiefile"] = cookie_file
     return opts
 
 
@@ -157,53 +163,91 @@ def _pick_best_audio_format(info: dict) -> tuple[str, str, dict[str, str]] | tup
     return None, None, {}
 
 
+def _env_clients(name: str, default: list[str]) -> list[str]:
+    raw = os.environ.get(name, "")
+    vals = [c.strip() for c in raw.split(",") if c.strip()]
+    return vals or default
+
+
+def _attempts() -> list[tuple[str, list[str], bool, str]]:
+    """(label, player clients, send cookies?, url). Cookie-capable clients first, then cookie-less mobile ones."""
+    watch = "https://www.youtube.com/watch?v={id}"
+    music = "https://music.youtube.com/watch?v={id}"
+    cookie_clients = _env_clients("YTDLP_COOKIE_CLIENTS", ["tv", "web_safari", "mweb", "web_creator"])
+    plain_clients = _env_clients("YTDLP_PLAIN_CLIENTS", ["android_vr", "ios"])
+    out: list[tuple[str, list[str], bool, str]] = []
+    if cookies_configured():
+        out.append(("cookies+music", cookie_clients, True, music))
+        out.append(("cookies+video", cookie_clients, True, watch))
+    out.append(("nocookies+mobile", plain_clients, False, watch))
+    out.append(("nocookies+music", plain_clients, False, music))
+    return out
+
+
 def extract_url_with_ytdlp(video_id: str) -> tuple[str, str, dict[str, str]]:
     """Return (url, mime_type, request_headers) using yt-dlp, picking the best playable audio stream."""
     errs: list[str] = []
+    for label, clients, use_cookies, url_t in _attempts():
+        try:
+            with yt_dlp.YoutubeDL(_get_ydl_opts(clients, use_cookies=use_cookies)) as ydl:
+                info = ydl.extract_info(url_t.format(id=video_id), download=False)
+            if not info:
+                errs.append(f"{label}: no info")
+                continue
+            url, mime, hdrs = _pick_best_audio_format(info)
+            if url and mime:
+                logger.info("resolved %s via %s", video_id, label)
+                return url, mime, hdrs
+            errs.append(f"{label}: no direct audio format ({len(info.get('formats') or [])} formats)")
+        except Exception as exc:  # noqa: BLE001
+            errs.append(f"{label}: {str(exc)[:220]}")
+    raise RuntimeError(f"Could not resolve audio for {video_id}: " + " | ".join(errs))
 
-    # 1. Primary: YouTube Music endpoint (android_music, ios_music)
-    try:
-        with yt_dlp.YoutubeDL(_get_ydl_opts(_CLIENTS_PRIMARY)) as ydl:
-            info = ydl.extract_info(
-                f"https://music.youtube.com/watch?v={video_id}", download=False
-            )
-            if info:
-                url, mime, hdrs = _pick_best_audio_format(info)
-                if url and mime:
-                    return url, mime, hdrs
-                errs.append("music: no format with direct url")
-    except Exception as exc:
-        errs.append(f"music: {exc}")
 
-    # 2. Secondary: Mobile & embedded clients on standard YouTube
-    try:
-        with yt_dlp.YoutubeDL(_get_ydl_opts(_CLIENTS_SECONDARY)) as ydl:
-            info = ydl.extract_info(
-                f"https://www.youtube.com/watch?v={video_id}", download=False
-            )
-            if info:
-                url, mime, hdrs = _pick_best_audio_format(info)
-                if url and mime:
-                    return url, mime, hdrs
-                errs.append("video: no format with direct url")
-    except Exception as exc:
-        errs.append(f"video: {exc}")
+class _CollectLogger:
+    def __init__(self) -> None:
+        self.lines: list[str] = []
 
-    # 3. Tertiary: Generic fallback
-    try:
-        with yt_dlp.YoutubeDL(_get_ydl_opts(_CLIENTS_TERTIARY)) as ydl:
-            info = ydl.extract_info(
-                f"https://www.youtube.com/watch?v={video_id}", download=False
-            )
-            if info:
-                url, mime, hdrs = _pick_best_audio_format(info)
-                if url and mime:
-                    return url, mime, hdrs
-                errs.append("generic: no format with direct url")
-    except Exception as exc:
-        errs.append(f"generic: {exc}")
+    def debug(self, msg: str) -> None:
+        if not str(msg).startswith("[debug] "):
+            self.lines.append(str(msg)[:300])
 
-    raise RuntimeError(f"Could not resolve audio for {video_id}: {'; '.join(errs)}")
+    def info(self, msg: str) -> None:
+        self.lines.append(str(msg)[:300])
+
+    def warning(self, msg: str) -> None:
+        self.lines.append("WARN " + str(msg)[:300])
+
+    def error(self, msg: str) -> None:
+        self.lines.append("ERR " + str(msg)[:300])
+
+
+def diagnose(video_id: str) -> dict[str, Any]:
+    """Run every resolution attempt and report what yt-dlp said (for debugging hosted deployments)."""
+    import shutil as _sh
+
+    report: dict[str, Any] = {
+        "yt_dlp": yt_dlp.version.__version__,
+        "cookies": cookies_configured(),
+        "js_runtime": {"deno": bool(_sh.which("deno")), "node": bool(_sh.which("node"))},
+        "attempts": [],
+    }
+    for label, clients, use_cookies, url_t in _attempts():
+        lg = _CollectLogger()
+        entry: dict[str, Any] = {"label": label, "clients": clients}
+        try:
+            with yt_dlp.YoutubeDL(_get_ydl_opts(clients, use_cookies=use_cookies, ydl_logger=lg)) as ydl:
+                info = ydl.extract_info(url_t.format(id=video_id), download=False)
+            fmts = (info or {}).get("formats") or []
+            url, mime, _ = _pick_best_audio_format(info or {})
+            entry.update(ok=bool(url), formats=len(fmts), mime=mime)
+        except Exception as exc:  # noqa: BLE001
+            entry.update(ok=False, error=str(exc)[:300])
+        entry["log"] = lg.lines[-12:]
+        report["attempts"].append(entry)
+        if entry.get("ok"):
+            break
+    return report
 
 
 def extract_track_with_ytdlp(video_id: str) -> Track:

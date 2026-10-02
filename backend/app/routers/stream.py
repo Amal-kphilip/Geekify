@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from app import cache
 from app.cache import drop_stream
-from app.services.cipher import extract_url_with_ytdlp
+from app.services.cipher import diagnose, extract_url_with_ytdlp
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -66,6 +66,12 @@ def _resolve_stream_sync(video_id: str) -> ResolvedStream:
                 "videoId": video_id,
             },
         ) from exc
+
+
+@router.get("/diag/{video_id}")
+async def diag(video_id: str):
+    """Debug helper: shows what yt-dlp does for this video on this server."""
+    return await run_in_threadpool(diagnose, video_id)
 
 
 @router.api_route("/stream/{video_id}", methods=["GET", "HEAD", "OPTIONS"])
