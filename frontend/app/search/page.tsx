@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { SearchResponse } from "@/lib/types";
@@ -34,7 +34,11 @@ function SearchInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync from the URL (e.g. top bar search) unless the user is typing here.
   useEffect(() => {
+    if (document.activeElement === inputRef.current) return;
     setSearchInput(params.get("q") || "");
   }, [params]);
 
@@ -46,19 +50,28 @@ function SearchInner() {
       setLoading(false);
       return;
     }
+    let cancelled = false;
     const handle = window.setTimeout(() => {
       setLoading(true);
       setError(null);
       api
         .search(activeQuery, type === "all" ? undefined : type)
         .then((res) => {
+          if (cancelled) return;
           setData(res);
           setError(null);
         })
-        .catch((e: Error) => setError(e.message || "Search failed"))
-        .finally(() => setLoading(false));
+        .catch((e: Error) => {
+          if (!cancelled) setError(e.message || "Search failed");
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     }, 250);
-    return () => window.clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
   }, [activeQuery, type]);
 
   const handleQueryChange = (val: string) => {
@@ -94,6 +107,7 @@ function SearchInner() {
         <h1 className="mb-4 text-3xl font-bold tracking-tight">Search</h1>
         <div className="relative max-w-2xl">
           <input
+            ref={inputRef}
             type="text"
             value={searchInput}
             onChange={(e) => handleQueryChange(e.target.value)}

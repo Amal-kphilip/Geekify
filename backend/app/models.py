@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -43,7 +43,7 @@ class Card(BaseModel):
 
 class Shelf(BaseModel):
     title: str
-    items: list[Card | Track] = Field(default_factory=list)
+    items: list[Union[Card, Track]] = Field(default_factory=list)
 
 
 class SearchResponse(BaseModel):

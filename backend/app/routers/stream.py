@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import anyio
-from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.responses import StreamingResponse
 import httpx
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 
 from app import cache
 from app.cache import drop_stream
@@ -32,7 +32,6 @@ _FORWARD_RESPONSE = {
     "content-length",
     "content-range",
     "accept-ranges",
-    "content-encoding",
 }
 
 
@@ -81,18 +80,17 @@ async def stream(video_id: str, request: Request):
         )
 
     # Run blocking resolution in threadpool to keep the asyncio loop responsive
-    resolved: ResolvedStream = await anyio.to_thread.run_sync(_resolve_stream_sync, video_id)
+    resolved: ResolvedStream = await run_in_threadpool(_resolve_stream_sync, video_id)
 
     headers: dict[str, str] = {
         "User-Agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36",
         "Accept": "*/*",
+        "Accept-Encoding": "identity",
     }
-    for key in _FORWARD_REQUEST:
-        val = request.headers.get(key)
-        if val:
-            headers[key.title() if key != "range" else "Range"] = val
     if rng := request.headers.get("range"):
         headers["Range"] = rng
+    if if_range := request.headers.get("if-range"):
+        headers["If-Range"] = if_range
 
     client = httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(60.0, connect=15.0))
     try:
@@ -107,7 +105,7 @@ async def stream(video_id: str, request: Request):
         raise HTTPException(status_code=502, detail={"error": "cdn_error", "reason": str(exc), "videoId": video_id}) from exc
 
     # If the cached URL expired, drop cache and ask client to retry
-    if upstream.status_code in {403, 410}:
+    if upstream.status_code in {403, 404, 410}:
         await upstream.aclose()
         await client.aclose()
         drop_stream(video_id)

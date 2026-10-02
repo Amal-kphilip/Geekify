@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -9,10 +9,18 @@ import { NowPlayingBar } from "@/components/player/NowPlayingBar";
 import { QueuePanel } from "@/components/player/QueuePanel";
 import { ExpandedPlayer } from "@/components/player/ExpandedPlayer";
 import { useUiStore } from "@/store/useUiStore";
+import { usePlayerStore } from "@/store/usePlayerStore";
+import { useLibraryStore } from "@/store/useLibraryStore";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const queueOpen = useUiStore((s) => s.queueOpen);
   const expanded = useUiStore((s) => s.expanded);
+
+  // Persisted stores are rehydrated after mount so server and client markup match.
+  useEffect(() => {
+    void usePlayerStore.persist.rehydrate();
+    void useLibraryStore.persist.rehydrate();
+  }, []);
 
   return (
     <div className="flex h-[100dvh] flex-col gap-2 bg-[#0a0a0f] p-2">

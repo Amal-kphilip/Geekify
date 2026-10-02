@@ -1,6 +1,7 @@
 "use client";
 
-import { Heart, ListPlus, Play } from "lucide-react";
+import { useState } from "react";
+import { Heart, ListMusic, ListPlus, Play } from "lucide-react";
 import type { Track } from "@/lib/types";
 import { artUrl } from "@/lib/types";
 import { usePlayerStore } from "@/store/usePlayerStore";
@@ -20,6 +21,10 @@ export function TrackRow({
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const addToQueue = usePlayerStore((s) => s.addToQueue);
   const toggleLike = useLibraryStore((s) => s.toggleLike);
+  const playlists = useLibraryStore((s) => s.playlists);
+  const addToPlaylist = useLibraryStore((s) => s.addToPlaylist);
+  const createPlaylist = useLibraryStore((s) => s.createPlaylist);
+  const [menuOpen, setMenuOpen] = useState(false);
   const liked = useLibraryStore((s) => s.isLiked(track.videoId));
   const active = current?.videoId === track.videoId;
   const src = artUrl(track.thumbnails, 80);
@@ -75,6 +80,52 @@ export function TrackRow({
         >
           <ListPlus className="h-4 w-4" />
         </button>
+        <div className="relative">
+          <button
+            type="button"
+            title="Add to playlist"
+            onClick={() => setMenuOpen((o) => !o)}
+            className="rounded-full p-1.5 hover:bg-white/10"
+          >
+            <ListMusic className="h-4 w-4" />
+          </button>
+          {menuOpen && (
+            <>
+              <button
+                type="button"
+                aria-label="Close menu"
+                className="fixed inset-0 z-30 cursor-default"
+                onClick={() => setMenuOpen(false)}
+              />
+              <div className="glass-strong absolute right-0 z-40 mt-1 max-h-60 w-52 overflow-y-auto rounded-xl p-1 text-sm text-white shadow-xl scrollbar-thin">
+                {playlists.map((pl) => (
+                  <button
+                    key={pl.id}
+                    type="button"
+                    className="block w-full truncate rounded-lg px-3 py-2 text-left hover:bg-white/10"
+                    onClick={() => {
+                      addToPlaylist(pl.id, track);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {pl.name}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="block w-full rounded-lg px-3 py-2 text-left text-cyan-300 hover:bg-white/10"
+                  onClick={() => {
+                    const name = window.prompt("Playlist name", "My playlist");
+                    if (name) addToPlaylist(createPlaylist(name).id, track);
+                    setMenuOpen(false);
+                  }}
+                >
+                  + New playlist
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -162,6 +162,7 @@ export const usePlayerStore = create<PlayerState>()(
     }),
     {
       name: "geekify-player",
+      skipHydration: true,
       partialize: (s) => ({
         currentTrack: s.currentTrack,
         queue: s.queue,

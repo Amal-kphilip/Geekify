@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef } from "react";
 import { api, streamUrl } from "@/lib/api";
@@ -9,6 +9,7 @@ export function AudioEngine() {
   const playPromiseRef = useRef<Promise<void> | null>(null);
   const seekLock = useRef(false);
   const rafRef = useRef<number>(0);
+  const retriedRef = useRef<string | null>(null);
 
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -40,6 +41,17 @@ export function AudioEngine() {
     };
     const onPause = () => setPlaying(false);
     const onErr = () => {
+      const track = usePlayerStore.getState().currentTrack;
+      // Stream URLs expire; retry once with a fresh resolve before giving up.
+      if (track && retriedRef.current !== track.videoId) {
+        retriedRef.current = track.videoId;
+        audio.src = `${streamUrl(track.videoId)}?retry=${Date.now()}`;
+        audio.load();
+        if (usePlayerStore.getState().isPlaying) {
+          audio.play().catch(() => undefined);
+        }
+        return;
+      }
       setPlayError("This track could not be streamed. It may be restricted or unavailable.");
     };
 
@@ -66,6 +78,7 @@ export function AudioEngine() {
     if (!audio || !currentTrack) return;
 
     setPlayError(null);
+    retriedRef.current = null;
     audio.src = streamUrl(currentTrack.videoId);
     audio.load();
 
@@ -165,16 +178,15 @@ export function AudioEngine() {
     });
   }, [currentTrack, next, previous]);
 
-  // Equalizer visualizer wave animation loop
+  // Equalizer visualizer wave animation loop (restarts whenever playback toggles)
   useEffect(() => {
+    if (!isPlaying) {
+      setAnalyserBins([0.15, 0.2, 0.25, 0.2, 0.15]);
+      return;
+    }
     let step = 0;
     const loop = () => {
       step += 0.08;
-      const playing = usePlayerStore.getState().isPlaying;
-      if (!playing) {
-        setAnalyserBins([0.15, 0.2, 0.25, 0.2, 0.15]);
-        return;
-      }
 
       const bins = [
         0.3 + 0.4 * Math.abs(Math.sin(step)),
@@ -190,13 +202,15 @@ export function AudioEngine() {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [setAnalyserBins]);
+  }, [isPlaying, setAnalyserBins]);
 
   // Keyboard controls
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      // A focused button already handles Space/Enter itself; don't double-toggle.
+      if (tag === "BUTTON" && (e.code === "Space" || e.code === "Enter")) return;
       const s = usePlayerStore.getState();
       if (e.code === "Space") {
         e.preventDefault();

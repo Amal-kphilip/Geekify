@@ -7,7 +7,6 @@ from fastapi import APIRouter, HTTPException, Query
 from app import cache
 from app.models import SearchResponse, Track
 from app.services.innertube_client import (
-    PlayabilityError,
     music_search,
     parse_search,
     player_response,
@@ -30,7 +29,8 @@ def search(
         return hit
     raw = music_search(q, kind)
     parsed = parse_search(raw, q, kind)
-    cache.set_search(key, parsed)
+    if parsed.songs or parsed.albums or parsed.artists or parsed.playlists or parsed.shelves:
+        cache.set_search(key, parsed)
     return parsed
 
 

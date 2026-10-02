@@ -36,7 +36,14 @@ def _client(name: str) -> innertube.InnerTube:
     return innertube.InnerTube(name)
 
 
-def _call_with_retry(fn, *, attempts: int = 3, backoff: float = 0.8) -> Any:
+def _is_client_error(exc: Exception) -> bool:
+    """4xx responses (except 429) will not succeed on retry."""
+    resp = getattr(exc, "response", None)
+    code = getattr(resp, "status_code", None)
+    return isinstance(code, int) and 400 <= code < 500 and code != 429
+
+
+def _call_with_retry(fn, *, attempts: int = 2, backoff: float = 0.5) -> Any:
     last: Exception | None = None
     for i in range(attempts):
         try:
@@ -44,6 +51,8 @@ def _call_with_retry(fn, *, attempts: int = 3, backoff: float = 0.8) -> Any:
         except Exception as exc:  # noqa: BLE001
             last = exc
             logger.warning("innertube call failed (attempt %s): %s", i + 1, exc)
+            if _is_client_error(exc) or i == attempts - 1:
+                break
             time.sleep(backoff * (2**i))
     assert last is not None
     raise last
@@ -103,7 +112,7 @@ def player_response(video_id: str) -> tuple[dict, str]:
                     body={"videoId": video_id, "params": PLAYER_PARAMS},
                 )
 
-            data = _call_with_retry(_do, attempts=2, backoff=0.4)
+            data = _call_with_retry(_do, attempts=1)
             status = (data.get("playabilityStatus") or {}).get("status", "UNKNOWN")
             if status == "OK" and (data.get("streamingData") or data.get("videoDetails")):
                 return data, name
@@ -290,7 +299,16 @@ def parse_collection(raw: dict, ident: str, kind: str) -> CollectionPage:
     artist = None
     artist_id = None
     if subtitle:
-        artist = str(subtitle).split("•")[0].strip()
+        parts = [p.strip() for p in str(subtitle).split("•")]
+        # "Album • Artist • 2020" -> artist is the part after the type label
+        artist = parts[1] if len(parts) > 1 and parts[0].lower() in {"album", "single", "ep", "playlist"} else parts[0]
+    cover = header.get("thumbnails") or []
+    for t in tracks:
+        if not t.thumbnails and cover:
+            t.thumbnails = cover
+        if (not t.artist or t.artist == "Unknown") and artist and kind == "album":
+            t.artist = artist
+            t.artists = [ArtistRef(name=artist, id=None)]
     return CollectionPage(
         id=ident,
         title=header.get("name") or ident,

@@ -46,3 +46,15 @@ Stream URLs are cached ~5 hours. Search/browse cached 15 minutes.
 - Space — play / pause
 - ← / → — seek 5s
 - ↑ / ↓ — volume
+
+## Configuration
+
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | frontend | Backend origin (default `http://127.0.0.1:8000`). When set, audio is streamed straight from the backend instead of through Next's proxy. |
+| `YOUTUBE_COOKIES_PATH` / `YOUTUBE_COOKIES` / `YOUTUBE_COOKIES_BASE64` | backend | Optional cookies for yt-dlp. Hosted/datacenter IPs are often challenged by YouTube; cookies fix most "stream unavailable" errors. |
+
+## Troubleshooting
+
+- **Songs won't play:** keep `yt-dlp` current (`pip install -U yt-dlp`) — YouTube changes break old versions quickly. On cloud hosts, supply cookies (above).
+- **Empty home / search:** check the backend log; InnerTube calls that return 4xx are no longer retried, so failures show up immediately.

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi import APIRouter, HTTPException
 
 from app import cache
@@ -15,7 +18,19 @@ from app.services.innertube_client import (
 )
 from app.services.parsers import extract_tracks
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+_HOME_ENDPOINTS = ["FEmusic_home", "FEmusic_explore", "FEmusic_charts", "FEmusic_new_releases"]
+
+
+def _load_home_endpoint(endpoint: str):
+    try:
+        return parse_home(music_browse(endpoint)).shelves
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("home endpoint %s failed: %s", endpoint, exc)
+        return []
 
 
 @router.get("/home", response_model=HomeResponse)
@@ -24,24 +39,20 @@ def home():
     if hit:
         return hit
 
-    combined_shelves = []
-    seen_titles = set()
+    with ThreadPoolExecutor(max_workers=len(_HOME_ENDPOINTS)) as pool:
+        results = list(pool.map(_load_home_endpoint, _HOME_ENDPOINTS))
 
-    for endpoint in ["FEmusic_home", "FEmusic_explore", "FEmusic_charts", "FEmusic_new_releases"]:
-        try:
-            raw = music_browse(endpoint)
-            parsed = parse_home(raw)
-            for s in parsed.shelves:
-                title_clean = s.title.strip().lower()
-                if title_clean not in seen_titles and len(s.items) > 0:
-                    seen_titles.add(title_clean)
-                    combined_shelves.append(s)
-        except Exception:
-            continue
+    combined_shelves = []
+    seen_titles: set[str] = set()
+    for shelves in results:
+        for s in shelves:
+            title_clean = s.title.strip().lower()
+            if title_clean not in seen_titles and len(s.items) > 0:
+                seen_titles.add(title_clean)
+                combined_shelves.append(s)
 
     if not combined_shelves:
-        raw = music_browse("FEmusic_home")
-        combined_shelves = parse_home(raw).shelves
+        raise HTTPException(status_code=502, detail="Could not load the YouTube Music home feed. Try again shortly.")
 
     res = HomeResponse(shelves=combined_shelves[:20])
     cache.set_browse("home_rich", res)
@@ -59,10 +70,14 @@ def related(video_id: str):
         raw = music_radio(video_id)
         tracks = extract_tracks(raw, limit=50)
     except Exception:
-        raw = music_next(video_id)
-        tracks = extract_tracks(raw, limit=50)
+        try:
+            raw = music_next(video_id)
+            tracks = extract_tracks(raw, limit=50)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail="Could not load recommendations") from exc
     tracks = [t for t in tracks if t.videoId != video_id]
-    cache.set_browse(key, tracks)
+    if tracks:
+        cache.set_browse(key, tracks)
     return tracks
 
 
@@ -97,13 +112,15 @@ def _collection(ident: str, kind: str) -> CollectionPage:
     if hit:
         return hit
 
-    # Generate candidate browse IDs
+    # Candidate browse IDs. Albums (MPRE...), artists (UC...) and already-prefixed
+    # ids are browsed as-is; bare playlist ids need the "VL" prefix.
     candidates: list[str] = []
-    if not ident.startswith(("VL", "FE")):
-        candidates.append(f"VL{ident}")
-    candidates.append(ident)
-    if ident.startswith("VL"):
-        candidates.append(ident[2:])
+    if ident.startswith(("MPRE", "UC", "FE")):
+        candidates.append(ident)
+    elif ident.startswith("VL"):
+        candidates.extend([ident, ident[2:]])
+    else:
+        candidates.extend([f"VL{ident}", ident])
 
     raw = None
     last_err: Exception | None = None
@@ -120,7 +137,7 @@ def _collection(ident: str, kind: str) -> CollectionPage:
         raise HTTPException(status_code=404, detail="Collection not found") from last_err
 
     parsed = parse_collection(raw, ident, kind)
-    if not parsed.tracks and ident.startswith("UC"):
+    if not parsed.tracks:
         raise HTTPException(status_code=404, detail="Collection not found")
     cache.set_browse(key, parsed)
     return parsed

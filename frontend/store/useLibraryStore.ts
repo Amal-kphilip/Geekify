@@ -66,6 +66,6 @@ export const useLibraryStore = create<LibraryState>()(
           ),
         }),
     }),
-    { name: "geekify-library" }
+    { name: "geekify-library", skipHydration: true }
   )
 );

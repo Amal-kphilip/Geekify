@@ -270,7 +270,6 @@ def card_from_two_row(renderer: dict) -> Card | None:
     playlist_id = _playlist_id(renderer)
     if not title:
         return None
-    ctype: Card.__annotations__  # noqa
     kind: str = "album"
     if page == "MUSIC_PAGE_TYPE_ARTIST" or (bid and bid.startswith("UC")):
         kind = "artist"

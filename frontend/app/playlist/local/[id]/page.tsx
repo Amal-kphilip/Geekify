@@ -79,7 +79,7 @@ export default function LocalPlaylistPage() {
           </button>
         </div>
       ))}
-      {!pl.tracks.length && <p className="text-white/45">Add tracks from search using the heart or play them into your library.</p>}
+      {!pl.tracks.length && <p className="text-white/45">Use the playlist button on any track to add it here.</p>}
     </div>
   );
 }

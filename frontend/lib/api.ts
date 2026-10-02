@@ -55,9 +55,6 @@ export const api = {
 
 export function streamUrl(videoId: string): string {
   // Stream directly from the backend — bypasses Vercel's proxy which times out on audio
-  const base =
-    typeof window !== "undefined"
-      ? (process.env.NEXT_PUBLIC_API_URL ?? "")
-      : "";
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
   return `${base}/api/stream/${videoId}`;
 }

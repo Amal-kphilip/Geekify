@@ -10,7 +10,21 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import yt_dlp
 
+from app.models import ArtistRef, Thumbnail, Track
+
 logger = logging.getLogger(__name__)
+
+# Player clients understood by current yt-dlp releases (the old android_music /
+# ios_music / android_creator / safari names no longer exist and were ignored).
+_CLIENTS_PRIMARY = ["android_vr", "tv"]
+_CLIENTS_SECONDARY = ["ios", "web_safari", "mweb"]
+_CLIENTS_TERTIARY = ["web", "web_embedded", "tv_embedded"]
+
+
+def _is_direct(f: dict) -> bool:
+    """Only plain HTTP(S) progressive formats can be range-proxied (no HLS/DASH manifests)."""
+    proto = str(f.get("protocol") or "https")
+    return proto.startswith("http") and "dash" not in proto and "m3u8" not in proto
 
 
 def _get_cookie_file() -> str | None:
@@ -56,6 +70,8 @@ def _get_ydl_opts(clients: list[str]) -> dict[str, Any]:
         "no_warnings": True,
         "noprogress": True,
         "skip_download": True,
+        "noplaylist": True,
+        "socket_timeout": 20,
         "extractor_args": {
             "youtube": {
                 "player_client": clients,
@@ -81,7 +97,8 @@ def _pick_best_audio_format(info: dict) -> tuple[str, str] | tuple[None, None]:
         f
         for f in formats
         if f.get("url")
-        and not f.get("ext", "").startswith("mhtml")
+        and _is_direct(f)
+        and not str(f.get("ext") or "").startswith("mhtml")
         and not str(f.get("format_id", "")).startswith("sb")
         and f.get("vcodec") in (None, "none")
         and f.get("acodec") not in (None, "none")
@@ -92,7 +109,8 @@ def _pick_best_audio_format(info: dict) -> tuple[str, str] | tuple[None, None]:
     )
     if pure_audio:
         best_fmt = pure_audio[0]
-        mime = best_fmt.get("mimetype") or ("audio/mp4" if best_fmt.get("ext") == "m4a" else "audio/webm")
+        ext = best_fmt.get("ext")
+        mime = best_fmt.get("mimetype") or ("audio/mp4" if ext in ("m4a", "mp4") else "audio/webm")
         return best_fmt["url"], _guess_mime(mime, best_fmt["url"])
 
     # 2. Second preference: muxed streams with audio (e.g. format 18 AAC)
@@ -100,11 +118,13 @@ def _pick_best_audio_format(info: dict) -> tuple[str, str] | tuple[None, None]:
         f
         for f in formats
         if f.get("url")
-        and not f.get("ext", "").startswith("mhtml")
+        and _is_direct(f)
+        and not str(f.get("ext") or "").startswith("mhtml")
         and not str(f.get("format_id", "")).startswith("sb")
         and f.get("acodec") not in (None, "none")
     ]
     if muxed_audio:
+        muxed_audio.sort(key=lambda f: float(f.get("tbr") or 0), reverse=True)
         best_fmt = muxed_audio[0]
         mime = "audio/mp4" if best_fmt.get("ext") in ("mp4", "m4a") else "audio/webm"
         return best_fmt["url"], mime
@@ -123,7 +143,7 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
 
     # 1. Primary: YouTube Music endpoint (android_music, ios_music)
     try:
-        with yt_dlp.YoutubeDL(_get_ydl_opts(["android_music", "ios_music"])) as ydl:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(_CLIENTS_PRIMARY)) as ydl:
             info = ydl.extract_info(
                 f"https://music.youtube.com/watch?v={video_id}", download=False
             )
@@ -137,7 +157,7 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
 
     # 2. Secondary: Mobile & embedded clients on standard YouTube
     try:
-        with yt_dlp.YoutubeDL(_get_ydl_opts(["android_creator", "safari", "android", "tv_embedded"])) as ydl:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(_CLIENTS_SECONDARY)) as ydl:
             info = ydl.extract_info(
                 f"https://www.youtube.com/watch?v={video_id}", download=False
             )
@@ -151,7 +171,7 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
 
     # 3. Tertiary: Generic fallback
     try:
-        with yt_dlp.YoutubeDL(_get_ydl_opts(["mweb", "web"])) as ydl:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(_CLIENTS_TERTIARY)) as ydl:
             info = ydl.extract_info(
                 f"https://www.youtube.com/watch?v={video_id}", download=False
             )
@@ -166,24 +186,23 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
     raise RuntimeError(f"Could not resolve audio for {video_id}: {'; '.join(errs)}")
 
 
-from app.models import ArtistRef, Thumbnail, Track
-
-
 def extract_track_with_ytdlp(video_id: str) -> Track:
     """Return a Track model populated from yt-dlp metadata."""
     try:
-        with yt_dlp.YoutubeDL(_get_ydl_opts(["android_music", "ios_music"])) as ydl:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(_CLIENTS_PRIMARY)) as ydl:
             info = ydl.extract_info(
                 f"https://music.youtube.com/watch?v={video_id}", download=False
             )
     except Exception:
-        with yt_dlp.YoutubeDL(_get_ydl_opts(["android_creator", "safari", "android", "tv_embedded"])) as ydl:
+        with yt_dlp.YoutubeDL(_get_ydl_opts(_CLIENTS_SECONDARY)) as ydl:
             info = ydl.extract_info(
                 f"https://www.youtube.com/watch?v={video_id}", download=False
             )
 
     if not info:
         raise RuntimeError("yt-dlp returned no metadata")
+    if info.get("entries"):
+        info = next((e for e in info["entries"] if e), info)
 
     title = info.get("title") or "Unknown"
     author = info.get("artist") or info.get("uploader") or info.get("channel") or "Unknown"
