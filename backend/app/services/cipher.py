@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import base64
 import os
+import shutil
 from pathlib import Path
 import tempfile
 from typing import Any
@@ -43,7 +44,15 @@ def _get_cookie_file() -> str | None:
         str(Path(__file__).resolve().parent.parent.parent / "cookies.txt"),
     ]:
         if candidate and os.path.isfile(candidate):
-            return os.path.abspath(candidate)
+            # yt-dlp rewrites the cookie file on exit; hosts like Render mount
+            # secret files read-only, so always work on a writable copy.
+            dest = os.path.join(tempfile.gettempdir(), "geekify_yt_cookies.txt")
+            try:
+                shutil.copyfile(candidate, dest)
+                return dest
+            except Exception as err:
+                logger.warning("Could not copy cookies %s -> %s: %s", candidate, dest, err)
+                return os.path.abspath(candidate)
 
     # 1. Plain text cookies in env var
     raw = os.environ.get("YOUTUBE_COOKIES")
@@ -69,6 +78,10 @@ def _get_cookie_file() -> str | None:
             logger.warning("Failed writing YOUTUBE_COOKIES_BASE64 to %s: %s", path, err)
 
     return None
+
+
+def cookies_configured() -> bool:
+    return _get_cookie_file() is not None
 
 
 def _get_ydl_opts(clients: list[str]) -> dict[str, Any]:

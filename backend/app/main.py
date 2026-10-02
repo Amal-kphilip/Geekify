@@ -28,4 +28,12 @@ app.include_router(media.router, prefix="/api")
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "service": "geekify"}
+    from app.services.cipher import cookies_configured
+    import yt_dlp
+
+    return {
+        "ok": True,
+        "service": "geekify",
+        "yt_dlp": yt_dlp.version.__version__,
+        "cookies": cookies_configured(),
+    }
