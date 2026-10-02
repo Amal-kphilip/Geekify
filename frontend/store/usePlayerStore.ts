@@ -133,7 +133,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
       setProgress: (t, d) => set({ progress: t, duration: d }),
       setPlaying: (p) => set({ isPlaying: p }),
-      setPlayError: (m) => set({ playError: m, isPlaying: false }),
+      // Only a real error should stop playback; clearing an error (null) must not touch isPlaying.
+      setPlayError: (m) => set(m ? { playError: m, isPlaying: false } : { playError: null }),
       setAnalyserBins: (bins) => set({ analyserBins: bins }),
       reorderQueue: (from, to) => {
         const queue = [...get().queue];
