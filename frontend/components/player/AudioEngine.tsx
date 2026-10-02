@@ -11,6 +11,35 @@ export function AudioEngine() {
   const rafRef = useRef<number>(0);
   const retriedRef = useRef<string | null>(null);
 
+  // Ask the backend why a stream failed so the UI can show the real reason.
+  const explainFailure = async (videoId: string): Promise<string> => {
+    try {
+      const res = await fetch(streamUrl(videoId), { headers: { Range: "bytes=0-0" }, cache: "no-store" });
+      if (res.ok) return "The browser could not decode this audio stream.";
+      const body = await res.json().catch(() => null);
+      const d = body?.detail;
+      return (typeof d === "string" ? d : d?.reason) || `Stream request failed (HTTP ${res.status}).`;
+    } catch {
+      return "Cannot reach the backend. Is it running on port 8000?";
+    }
+  };
+
+  const handlePlayFailure = (err: unknown) => {
+    const e = err as { name?: string };
+    if (e?.name === "AbortError") return; // superseded by a newer load/pause
+    const track = usePlayerStore.getState().currentTrack;
+    if (e?.name === "NotAllowedError") {
+      setPlayError("Browser blocked autoplay. Press play to start.");
+      return;
+    }
+    // NotSupportedError etc. => the source failed to load; find out why.
+    if (track) {
+      void explainFailure(track.videoId).then((msg) => {
+        if (usePlayerStore.getState().currentTrack?.videoId === track.videoId) setPlayError(msg);
+      });
+    }
+  };
+
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const volume = usePlayerStore((s) => s.volume);
@@ -52,7 +81,11 @@ export function AudioEngine() {
         }
         return;
       }
-      setPlayError("This track could not be streamed. It may be restricted or unavailable.");
+      const t = usePlayerStore.getState().currentTrack;
+      if (!t) return;
+      void explainFailure(t.videoId).then((msg) => {
+        if (usePlayerStore.getState().currentTrack?.videoId === t.videoId) setPlayError(msg);
+      });
     };
 
     audio.addEventListener("timeupdate", onTime);
@@ -86,11 +119,7 @@ export function AudioEngine() {
       const p = audio.play();
       if (p !== undefined) {
         playPromiseRef.current = p;
-        p.catch((err) => {
-          if (err.name !== "AbortError") {
-            setPlayError("Click play to start audio.");
-          }
-        });
+        p.catch(handlePlayFailure);
       }
     }
 
@@ -120,11 +149,7 @@ export function AudioEngine() {
       const p = audio.play();
       if (p !== undefined) {
         playPromiseRef.current = p;
-        p.catch((err) => {
-          if (err.name !== "AbortError") {
-            setPlayError("Click play to start audio.");
-          }
-        });
+        p.catch(handlePlayFailure);
       }
     } else {
       if (playPromiseRef.current) {

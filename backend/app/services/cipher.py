@@ -21,6 +21,13 @@ _CLIENTS_SECONDARY = ["ios", "web_safari", "mweb"]
 _CLIENTS_TERTIARY = ["web", "web_embedded", "tv_embedded"]
 
 
+def _fmt_headers(fmt: dict, info: dict) -> dict[str, str]:
+    """Headers yt-dlp says must accompany this URL (UA etc.); googlevideo rejects mismatches with 403."""
+    raw = fmt.get("http_headers") or info.get("http_headers") or {}
+    keep = {"user-agent", "accept", "accept-language", "referer", "origin"}
+    return {k: str(v) for k, v in raw.items() if k.lower() in keep}
+
+
 def _is_direct(f: dict) -> bool:
     """Only plain HTTP(S) progressive formats can be range-proxied (no HLS/DASH manifests)."""
     proto = str(f.get("protocol") or "https")
@@ -89,7 +96,7 @@ def parse_signature_cipher(cipher: str) -> dict[str, str]:
     return {k: v[0] if v else "" for k, v in parsed.items()}
 
 
-def _pick_best_audio_format(info: dict) -> tuple[str, str] | tuple[None, None]:
+def _pick_best_audio_format(info: dict) -> tuple[str, str, dict[str, str]] | tuple[None, None, dict[str, str]]:
     formats = info.get("formats") or []
 
     # 1. First preference: pure audio streams (no video track, e.g. opus 160k / m4a 128k)
@@ -111,7 +118,7 @@ def _pick_best_audio_format(info: dict) -> tuple[str, str] | tuple[None, None]:
         best_fmt = pure_audio[0]
         ext = best_fmt.get("ext")
         mime = best_fmt.get("mimetype") or ("audio/mp4" if ext in ("m4a", "mp4") else "audio/webm")
-        return best_fmt["url"], _guess_mime(mime, best_fmt["url"])
+        return best_fmt["url"], _guess_mime(mime, best_fmt["url"]), _fmt_headers(best_fmt, info)
 
     # 2. Second preference: muxed streams with audio (e.g. format 18 AAC)
     muxed_audio = [
@@ -127,18 +134,18 @@ def _pick_best_audio_format(info: dict) -> tuple[str, str] | tuple[None, None]:
         muxed_audio.sort(key=lambda f: float(f.get("tbr") or 0), reverse=True)
         best_fmt = muxed_audio[0]
         mime = "audio/mp4" if best_fmt.get("ext") in ("mp4", "m4a") else "audio/webm"
-        return best_fmt["url"], mime
+        return best_fmt["url"], mime, _fmt_headers(best_fmt, info)
 
     # 3. Direct info url fallback
     url = info.get("url")
     if url:
-        return url, _guess_mime(info.get("ext") or "audio/webm", url)
+        return url, _guess_mime(info.get("ext") or "audio/webm", url), _fmt_headers(info, info)
 
-    return None, None
+    return None, None, {}
 
 
-def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
-    """Return (url, mime_type) using yt-dlp, picking the best playable audio stream."""
+def extract_url_with_ytdlp(video_id: str) -> tuple[str, str, dict[str, str]]:
+    """Return (url, mime_type, request_headers) using yt-dlp, picking the best playable audio stream."""
     errs: list[str] = []
 
     # 1. Primary: YouTube Music endpoint (android_music, ios_music)
@@ -148,9 +155,9 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
                 f"https://music.youtube.com/watch?v={video_id}", download=False
             )
             if info:
-                url, mime = _pick_best_audio_format(info)
+                url, mime, hdrs = _pick_best_audio_format(info)
                 if url and mime:
-                    return url, mime
+                    return url, mime, hdrs
                 errs.append("music: no format with direct url")
     except Exception as exc:
         errs.append(f"music: {exc}")
@@ -162,9 +169,9 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
                 f"https://www.youtube.com/watch?v={video_id}", download=False
             )
             if info:
-                url, mime = _pick_best_audio_format(info)
+                url, mime, hdrs = _pick_best_audio_format(info)
                 if url and mime:
-                    return url, mime
+                    return url, mime, hdrs
                 errs.append("video: no format with direct url")
     except Exception as exc:
         errs.append(f"video: {exc}")
@@ -176,9 +183,9 @@ def extract_url_with_ytdlp(video_id: str) -> tuple[str, str]:
                 f"https://www.youtube.com/watch?v={video_id}", download=False
             )
             if info:
-                url, mime = _pick_best_audio_format(info)
+                url, mime, hdrs = _pick_best_audio_format(info)
                 if url and mime:
-                    return url, mime
+                    return url, mime, hdrs
                 errs.append("generic: no format with direct url")
     except Exception as exc:
         errs.append(f"generic: {exc}")

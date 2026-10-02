@@ -41,6 +41,7 @@ class ResolvedStream:
     mime: str
     itag: int | None
     client: str
+    headers: dict | None = None
 
 
 def _resolve_stream_sync(video_id: str) -> ResolvedStream:
@@ -50,8 +51,8 @@ def _resolve_stream_sync(video_id: str) -> ResolvedStream:
 
     # Primary path: yt-dlp multi-client extractor
     try:
-        url, mime = extract_url_with_ytdlp(video_id)
-        resolved = ResolvedStream(url=url, mime=mime, itag=None, client="yt-dlp")
+        url, mime, fmt_headers = extract_url_with_ytdlp(video_id)
+        resolved = ResolvedStream(url=url, mime=mime, itag=None, client="yt-dlp", headers=fmt_headers)
         cache.set_stream(video_id, resolved)
         return resolved
     except Exception as exc:
@@ -85,8 +86,10 @@ async def stream(video_id: str, request: Request):
     headers: dict[str, str] = {
         "User-Agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36",
         "Accept": "*/*",
-        "Accept-Encoding": "identity",
     }
+    # Use the exact headers yt-dlp resolved the URL with (UA must match the client).
+    headers.update(resolved.headers or {})
+    headers["Accept-Encoding"] = "identity"
     if rng := request.headers.get("range"):
         headers["Range"] = rng
     if if_range := request.headers.get("if-range"):
@@ -105,13 +108,19 @@ async def stream(video_id: str, request: Request):
         raise HTTPException(status_code=502, detail={"error": "cdn_error", "reason": str(exc), "videoId": video_id}) from exc
 
     # If the cached URL expired, drop cache and ask client to retry
-    if upstream.status_code in {403, 404, 410}:
+    if upstream.status_code >= 400 and upstream.status_code != 416:
+        code = upstream.status_code
         await upstream.aclose()
         await client.aclose()
         drop_stream(video_id)
+        logger.warning("googlevideo returned %s for %s (url cache dropped)", code, video_id)
         raise HTTPException(
-            status_code=410,
-            detail={"error": "expired", "reason": "Stream URL expired. Retry.", "videoId": video_id},
+            status_code=502,
+            detail={
+                "error": "cdn_rejected",
+                "reason": f"YouTube's CDN rejected the stream (HTTP {code}). Update yt-dlp or add cookies.",
+                "videoId": video_id,
+            },
         )
 
     resp_headers = {
