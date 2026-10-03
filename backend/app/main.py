@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import browse, media, search, stream
+from app.routers import browse, media, recommend, search, stream
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -24,6 +24,7 @@ app.include_router(search.router, prefix="/api")
 app.include_router(stream.router, prefix="/api")
 app.include_router(browse.router, prefix="/api")
 app.include_router(media.router, prefix="/api")
+app.include_router(recommend.router, prefix="/api")
 
 
 @app.get("/api/health")

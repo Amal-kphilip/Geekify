@@ -1,21 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Heart, ListMusic, RefreshCw } from "lucide-react";
-import { api } from "@/lib/api";
-import type { Card, Shelf, Track } from "@/lib/types";
-import { artUrl, isTrack } from "@/lib/types";
+import { Play, RefreshCw, Sparkles, X } from "lucide-react";
+import { AccountMenu } from "@/components/auth/AccountMenu";
 import { ShelfRow, ShelfSkeleton } from "@/components/ui/ShelfRow";
-import { useOpenCard } from "@/components/ui/useOpenCard";
-import { useHomeStore } from "@/store/useHomeStore";
+import { TrackRow } from "@/components/ui/TrackRow";
+import type { Card, Mix, Shelf } from "@/lib/types";
+import { artUrl, isTrack } from "@/lib/types";
+import { useAuthStore } from "@/store/useAuthStore";
 import { useHistoryStore } from "@/store/useHistoryStore";
+import { useHomeStore } from "@/store/useHomeStore";
 import { useLibraryStore } from "@/store/useLibraryStore";
 import { usePlayerStore } from "@/store/usePlayerStore";
+import { useRecommendStore } from "@/store/useRecommendStore";
+import { useUiStore } from "@/store/useUiStore";
 
 const FILTERS = [
-  { id: "all", label: "All" },
+  { id: "all", label: "Everything" },
   { id: "song", label: "Songs" },
   { id: "album", label: "Albums" },
   { id: "playlist", label: "Playlists" },
@@ -23,7 +24,13 @@ const FILTERS = [
 ] as const;
 type FilterId = (typeof FILTERS)[number]["id"];
 
-type QuickItem = { key: string; title: string; thumb?: string; kind: "liked" | "playlist" | "art"; onClick: () => void };
+const TINTS = [
+  "from-violet-500/35 to-fuchsia-500/10",
+  "from-teal-400/30 to-sky-500/10",
+  "from-amber-400/25 to-rose-500/10",
+  "from-indigo-400/30 to-cyan-400/10",
+  "from-pink-400/30 to-purple-500/10",
+];
 
 function applyFilter(shelf: Shelf, filter: FilterId): Shelf | null {
   if (filter === "all") return shelf;
@@ -33,190 +40,255 @@ function applyFilter(shelf: Shelf, filter: FilterId): Shelf | null {
   return items.length ? { ...shelf, items } : null;
 }
 
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 5) return "Still up";
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function MixCard({ mix, index, open, onOpen }: { mix: Mix; index: number; open: boolean; onOpen: () => void }) {
+  const play = usePlayerStore((s) => s.play);
+  const arts = mix.tracks.slice(0, 4).map((t) => artUrl(t.thumbnails, 120));
+  return (
+    <div
+      className={`group w-[212px] shrink-0 rounded-3xl bg-gradient-to-br ${TINTS[index % TINTS.length]} p-3 ring-1 transition ${
+        open ? "ring-brand" : "ring-white/10 hover:ring-white/25"
+      }`}
+    >
+      <button type="button" onClick={onOpen} className="block w-full text-left" aria-expanded={open}>
+        <div className="grid aspect-square grid-cols-2 gap-1 overflow-hidden rounded-2xl bg-black/20">
+          {[0, 1, 2, 3].map((i) =>
+            arts[i] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} src={arts[i]} alt="" loading="lazy" className="aspect-square h-full w-full object-cover" />
+            ) : (
+              <div key={i} className="aspect-square bg-white/5" />
+            )
+          )}
+        </div>
+      </button>
+      <div className="mt-3 flex items-end gap-2">
+        <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
+          <div className="truncate font-bold">{mix.title}</div>
+          <div className="line-clamp-2 text-xs text-[#aeabcf]">
+            {mix.subtitle} &middot; {mix.tracks.length} songs
+          </div>
+        </button>
+        <button
+          type="button"
+          aria-label={`Play ${mix.title}`}
+          onClick={() => play(mix.tracks[0], mix.tracks)}
+          className="accent-bg flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-black shadow-lg shadow-violet-500/30 transition hover:scale-105"
+        >
+          <Play className="h-4 w-4 fill-black" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
-  const router = useRouter();
-  const openCard = useOpenCard();
   const play = usePlayerStore((s) => s.play);
   const { data, error, loading, load } = useHomeStore();
   const recent = useHistoryStore((s) => s.recent);
   const liked = useLibraryStore((s) => s.liked);
-  const playlists = useLibraryStore((s) => s.playlists);
+  const status = useAuthStore((s) => s.status);
+  const firstName = useAuthStore((s) => s.user?.name.split(" ")[0] ?? null);
+  const setAuthOpen = useUiStore((s) => s.setAuthOpen);
+  const { mixes, loading: mixLoading, error: mixError, load: loadMixes } = useRecommendStore();
   const [filter, setFilter] = useState<FilterId>("all");
-  const [because, setBecause] = useState<Shelf[]>([]);
+  const [openMix, setOpenMix] = useState<string | null>(null);
+  const [hello, setHello] = useState("Welcome");
+
+  useEffect(() => setHello(greeting()), []);
 
   // Kick off (or refresh, if older than 5 min) the feed. The app shell already started it at page load.
   useEffect(() => {
     void load();
   }, [load]);
 
-  // "Because you listened to ..." - recommendations seeded from the last two different artists played.
-  const seeds = useMemo(() => {
-    const out: Track[] = [];
-    for (const t of recent) {
-      if (out.length >= 2) break;
-      if (!out.some((o) => o.artist === t.artist)) out.push(t);
-    }
-    return out;
-  }, [recent]);
-  const seedKey = seeds.map((s) => s.videoId).join(",");
-
+  // Build / refresh the personalised mixes when favourites change or the first plays arrive.
+  const likedKey = liked
+    .slice(0, 40)
+    .map((t) => t.videoId)
+    .join(",");
+  const hasRecent = recent.length > 0;
   useEffect(() => {
-    if (!seeds.length) {
-      setBecause([]);
-      return;
-    }
-    let cancelled = false;
-    Promise.all(
-      seeds.map((t) =>
-        api
-          .related(t.videoId)
-          .then((tracks): Shelf | null =>
-            tracks.length ? { title: `Because you listened to ${t.title}`, items: tracks.slice(0, 20) } : null
-          )
-          .catch(() => null)
-      )
-    ).then((res) => {
-      if (!cancelled) setBecause(res.filter((r): r is Shelf => !!r));
-    });
-    return () => {
-      cancelled = true;
-    };
+    void loadMixes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seedKey]);
+  }, [likedKey, hasRecent]);
 
-  // Quick-access grid: Liked Songs, your playlists, then what you played recently.
-  const quick = useMemo(() => {
-    const items: QuickItem[] = [
-      { key: "liked", title: "Liked Songs", kind: "liked", onClick: () => router.push("/liked") },
-    ];
-    playlists.slice(0, 3).forEach((p) =>
-      items.push({
-        key: `pl-${p.id}`,
-        title: p.name,
-        kind: "playlist",
-        thumb: artUrl(p.tracks[0]?.thumbnails, 80),
-        onClick: () => router.push(`/playlist/local/${p.id}`),
-      })
-    );
-    for (const t of recent) {
-      if (items.length >= 8) break;
-      items.push({ key: `rc-${t.videoId}`, title: t.title, kind: "art", thumb: artUrl(t.thumbnails, 80), onClick: () => play(t, recent) });
-    }
-    // New listener: fill the grid with cards from the feed.
-    if (items.length < 8 && data) {
-      for (const shelf of data.shelves) {
-        for (const it of shelf.items) {
-          if (items.length >= 8) break;
-          if (isTrack(it)) continue;
-          const c = it as Card;
-          items.push({ key: `fd-${c.type}-${c.id}`, title: c.title, kind: "art", thumb: artUrl(c.thumbnails, 80), onClick: () => openCard(c) });
-        }
-        if (items.length >= 8) break;
-      }
-    }
-    return items.slice(0, 8);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playlists, recent, data, liked.length]);
+  const hasSignals = liked.length > 0 || recent.length > 0;
+  const activeMix = mixes.find((m) => m.id === openMix) ?? null;
 
   const shelves = useMemo(() => {
-    const all: Shelf[] = [...because, ...(data?.shelves ?? [])];
+    const all: Shelf[] = [...(data?.shelves ?? [])];
     return all.map((s) => applyFilter(s, filter)).filter((s): s is Shelf => !!s);
-  }, [because, data, filter]);
+  }, [data, filter]);
+
+  const jumpBack: Shelf | null = recent.length
+    ? { title: "Jump back in", items: recent.slice(0, 14) }
+    : null;
 
   return (
-    <div className="-mx-4 -mt-4 md:mx-0 md:mt-0">
-      {/* Filter chips (+ avatar on mobile) */}
-      <div className="no-scrollbar sticky top-0 z-10 -mb-1 flex items-center gap-2 overflow-x-auto bg-panel px-4 py-3 md:static md:px-0 md:pt-0">
-        <Link
-          href="/library"
-          aria-label="Your library"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-bold text-black md:hidden"
-        >
-          G
-        </Link>
-        {FILTERS.map((f) => (
+    <div>
+      {/* Header: greeting, view switcher, refresh (+ account on small screens) */}
+      <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-2xl font-bold tracking-tight md:text-3xl">
+            <span className="accent-text">{hello}</span>
+            {firstName ? `, ${firstName}` : ""}
+          </h1>
+          <p className="text-sm text-[#aeabcf]">Your music, tuned to your taste.</p>
+        </div>
+        <div className="md:hidden">
+          <AccountMenu />
+        </div>
+        <div className="no-scrollbar flex w-full items-center gap-1 overflow-x-auto rounded-2xl bg-white/[0.05] p-1 md:w-auto">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              aria-pressed={filter === f.id}
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-sm font-medium transition ${
+                filter === f.id ? "accent-bg text-black" : "text-[#aeabcf] hover:text-white"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
           <button
-            key={f.id}
             type="button"
-            onClick={() => setFilter(f.id)}
-            aria-pressed={filter === f.id}
-            className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              filter === f.id ? "bg-brand text-black" : "bg-[#2a2a2a] text-white hover:bg-[#333]"
-            }`}
+            onClick={() => {
+              void load(true);
+              void loadMixes(true);
+            }}
+            disabled={loading || mixLoading}
+            aria-label="Refresh home"
+            title="Refresh"
+            className="ml-1 shrink-0 rounded-xl p-2 text-[#aeabcf] transition hover:text-white disabled:opacity-50"
           >
-            {f.label}
+            <RefreshCw className={`h-4 w-4 ${loading || mixLoading ? "spinner" : ""}`} />
           </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => void load(true)}
-          disabled={loading}
-          aria-label="Refresh home"
-          title="Refresh"
-          className="ml-auto shrink-0 rounded-full p-2 text-[#b3b3b3] transition hover:text-white disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "spinner" : ""}`} />
-        </button>
+        </div>
       </div>
 
-      <div className="px-4 pb-4 pt-2 md:px-0">
-        {filter === "all" && (
-          <div className="mb-8 grid grid-cols-2 gap-2 lg:grid-cols-4">
-            {quick.map((q) => (
-              <button
-                key={q.key}
-                type="button"
-                onClick={q.onClick}
-                className="group flex h-14 items-center gap-3 overflow-hidden rounded bg-white/10 text-left transition hover:bg-white/20 md:h-16"
-              >
-                {q.kind === "liked" ? (
-                  <span className="flex h-full w-14 shrink-0 items-center justify-center bg-[#4b3fd6] md:w-16">
-                    <Heart className="h-5 w-5 fill-white text-white" />
-                  </span>
-                ) : q.thumb ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={q.thumb} alt="" className="h-full w-14 shrink-0 object-cover md:w-16" />
-                ) : (
-                  <span className="flex h-full w-14 shrink-0 items-center justify-center bg-[#282828] md:w-16">
-                    <ListMusic className="h-5 w-5 text-[#a7a7a7]" />
-                  </span>
-                )}
-                <span className="line-clamp-2 pr-2 text-sm font-bold">{q.title}</span>
-              </button>
-            ))}
+      {filter === "all" && (
+        <>
+          {/* Personalised mixes */}
+          {hasSignals ? (
+            <section className="mb-8">
+              <div className="mb-3 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-brand" />
+                <h2 className="text-xl font-bold tracking-tight md:text-2xl">Your mixes</h2>
+              </div>
+              {mixes.length > 0 ? (
+                <div className="no-scrollbar -mx-1 flex gap-4 overflow-x-auto px-1 pb-2">
+                  {mixes.map((m, i) => (
+                    <MixCard key={m.id} mix={m} index={i} open={openMix === m.id} onOpen={() => setOpenMix(openMix === m.id ? null : m.id)} />
+                  ))}
+                </div>
+              ) : mixLoading ? (
+                <div className="flex gap-4 overflow-hidden">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-[292px] w-[212px] shrink-0 animate-pulse rounded-3xl bg-white/[0.06]" />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-[#9d9bbd]">
+                  {mixError ?? "Play or favourite a few more songs and your mixes will appear here."}
+                </p>
+              )}
+
+              {activeMix && (
+                <div className="mt-4 rounded-3xl bg-white/[0.04] p-4 ring-1 ring-white/10">
+                  <div className="mb-2 flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-lg font-bold">{activeMix.title}</div>
+                      <div className="text-xs text-[#aeabcf]">{activeMix.subtitle}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => play(activeMix.tracks[0], activeMix.tracks)}
+                      className="accent-bg flex h-10 items-center gap-2 rounded-full px-5 text-sm font-bold text-black transition hover:brightness-110"
+                    >
+                      <Play className="h-4 w-4 fill-black" />
+                      Play all
+                    </button>
+                    <button type="button" aria-label="Close mix" onClick={() => setOpenMix(null)} className="rounded-full p-2 text-[#aeabcf] hover:bg-white/10 hover:text-white">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div>
+                    {activeMix.tracks.slice(0, 15).map((t, i) => (
+                      <TrackRow key={t.videoId} track={t} index={i} queue={activeMix.tracks} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          ) : (
+            <section className="mb-8 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500/25 via-transparent to-teal-400/15 p-6 ring-1 ring-white/10">
+              <div className="flex items-start gap-4">
+                <div className="accent-bg flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-black">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold">Mixes made just for you</h2>
+                  <p className="mt-1 max-w-xl text-sm text-[#aeabcf]">
+                    Play a few songs or tap the heart on the ones you love. Geekify learns your taste and builds
+                    personal mixes here{status === "guest" ? ", and an account keeps them on every device." : "."}
+                  </p>
+                  {status === "guest" && (
+                    <button
+                      type="button"
+                      onClick={() => setAuthOpen(true)}
+                      className="mt-3 rounded-full bg-white px-5 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
+                    >
+                      Create a free account
+                    </button>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {jumpBack && <ShelfRow shelf={jumpBack} />}
+        </>
+      )}
+
+      {error && !data && (
+        <div className="mb-6 rounded-2xl bg-white/[0.06] p-4 text-sm text-amber-200" role="alert">
+          {error}
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => void load(true)}
+              className="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-black"
+            >
+              Try again
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {error && !data && (
-          <div className="mb-6 rounded-lg bg-[#1f1f1f] p-4 text-sm text-amber-200" role="alert">
-            {error}
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => void load(true)}
-                className="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-black"
-              >
-                Try again
-              </button>
-            </div>
-          </div>
-        )}
+      {!data && !error && (
+        <>
+          <ShelfSkeleton />
+          <ShelfSkeleton />
+        </>
+      )}
 
-        {!data && !error && (
-          <>
-            <ShelfSkeleton />
-            <ShelfSkeleton />
-          </>
-        )}
+      {shelves.map((s, i) => (
+        <ShelfRow key={`${s.title}-${i}`} shelf={s} />
+      ))}
 
-        {shelves.map((s, i) => (
-          <ShelfRow key={`${s.title}-${i}`} shelf={s} />
-        ))}
-
-        {data && !shelves.length && (
-          <p className="text-[#a7a7a7]">Nothing to show for this filter. Try another one.</p>
-        )}
-      </div>
+      {data && !shelves.length && filter !== "all" && (
+        <p className="text-[#9d9bbd]">Nothing to show for this view. Try another one.</p>
+      )}
     </div>
   );
 }

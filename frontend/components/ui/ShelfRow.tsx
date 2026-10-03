@@ -33,7 +33,7 @@ export function ShelfSkeleton() {
       <div className="flex gap-3 overflow-hidden">
         {Array.from({ length: 7 }).map((_, i) => (
           <div key={i} className="w-[148px] shrink-0 sm:w-[172px]">
-            <div className="aspect-square rounded-md bg-white/10" />
+            <div className="aspect-square rounded-xl bg-white/10" />
             <div className="mt-3 h-3 w-24 rounded bg-white/10" />
             <div className="mt-2 h-3 w-16 rounded bg-white/5" />
           </div>

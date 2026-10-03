@@ -9,9 +9,11 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        brand: "#1ed760",
-        panel: "#121212",
-        elevated: "#1f1f1f",
+        brand: "#b69cff",
+        brand2: "#5eead4",
+        ink: "#0a0b1f",
+        panel: "#14152e",
+        elevated: "#1d1e3d",
       },
       boxShadow: {
         glow: "0 0 40px -8px rgb(168 85 247 / 0.45)",

@@ -2,12 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #000000;
-  --foreground: #ffffff;
-  --brand: #1ed760;
-  --panel: #121212;
-  --elevated: #1f1f1f;
+@layer base {
+  :root {
+    --background: #0a0b1f;
+    --foreground: #f4f3ff;
+    --brand: #b69cff;
+    --brand2: #5eead4;
+    --panel: #14152e;
+    --elevated: #1d1e3d;
+  }
 }
 
 html,
@@ -22,18 +25,28 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Flat surfaces. (Class names kept so older pages pick up the new look.) */
+/* Frosted-glass surfaces (the signature Geekify look). */
 @layer utilities {
   .glass {
-    background: #181818;
-    border: 0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
   }
   .glass-strong {
-    background: #121212;
-    border: 0;
+    background: rgba(20, 21, 46, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(26px) saturate(140%);
+    -webkit-backdrop-filter: blur(26px) saturate(140%);
   }
   .accent-text {
-    color: #1ed760;
+    background: linear-gradient(90deg, #b69cff, #5eead4);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .accent-bg {
+    background: linear-gradient(135deg, #b69cff, #5eead4);
   }
   .scrollbar-thin::-webkit-scrollbar {
     width: 12px;
@@ -63,7 +76,7 @@ input[type="range"] {
   background: transparent;
   height: 4px;
   cursor: pointer;
-  --seek-fill: #fff;
+  --seek-fill: #e9e5ff;
 }
 input[type="range"]:hover:not(:disabled) {
   --seek-fill: #1ed760;
@@ -135,4 +148,36 @@ input[type="range"]:disabled {
 }
 .spinner {
   animation: spin-slow 0.8s linear infinite;
+}
+
+/* Aurora backdrop: soft colour blooms behind the glass panels. */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 12% 8%, rgba(139, 92, 246, 0.28), transparent 70%),
+    radial-gradient(50% 45% at 92% 12%, rgba(45, 212, 191, 0.18), transparent 70%),
+    radial-gradient(55% 50% at 70% 100%, rgba(236, 72, 153, 0.16), transparent 70%),
+    #0a0b1f;
+}
+
+/* Record-style artwork in the player dock. */
+@keyframes record-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.record {
+  animation: record-spin 16s linear infinite;
+  animation-play-state: paused;
+}
+.record.is-playing {
+  animation-play-state: running;
+}
+@media (prefers-reduced-motion: reduce) {
+  .record {
+    animation: none;
+  }
 }

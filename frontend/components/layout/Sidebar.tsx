@@ -2,80 +2,69 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Heart, Library, ListMusic, Plus } from "lucide-react";
-import { artUrl } from "@/lib/types";
+import { Heart, Home, Library, Music2, Plus, Search } from "lucide-react";
 import { useLibraryStore } from "@/store/useLibraryStore";
 
-/** Desktop "Your Library" panel. */
+const ITEMS = [
+  { href: "/", label: "Home", icon: Home },
+  { href: "/search", label: "Search", icon: Search },
+  { href: "/library", label: "Collection", icon: Library },
+  { href: "/liked", label: "Favourites", icon: Heart },
+] as const;
+
+/** Desktop navigation: a slim floating rail with tooltips (the collection lives on its own page). */
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const playlists = useLibraryStore((s) => s.playlists);
-  const liked = useLibraryStore((s) => s.liked);
   const createPlaylist = useLibraryStore((s) => s.createPlaylist);
 
-  const row = (active: boolean) =>
-    `flex items-center gap-3 rounded-md p-2 transition ${active ? "bg-[#2a2a2a]" : "hover:bg-[#1f1f1f]"}`;
+  const tip =
+    "pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1 text-xs font-medium text-white opacity-0 shadow-lg ring-1 ring-white/10 transition group-hover:opacity-100 group-focus-visible:opacity-100";
 
   return (
-    <aside className="hidden h-full w-[300px] shrink-0 flex-col rounded-lg bg-panel md:flex lg:w-[340px]">
-      <div className="flex items-center justify-between px-4 pb-2 pt-4">
-        <Link href="/library" className="flex items-center gap-2 font-semibold text-[#b3b3b3] transition hover:text-white">
-          <Library className="h-6 w-6" />
-          Your Library
-        </Link>
-        <button
-          type="button"
-          title="Create playlist"
-          aria-label="Create playlist"
-          className="rounded-full p-2 text-[#b3b3b3] transition hover:bg-[#1f1f1f] hover:text-white"
-          onClick={() => {
-            const name = window.prompt("Playlist name", "My playlist");
-            if (!name) return;
-            const pl = createPlaylist(name);
-            router.push(`/playlist/local/${pl.id}`);
-          }}
-        >
-          <Plus className="h-5 w-5" />
-        </button>
-      </div>
+    <aside
+      className="glass relative z-20 hidden w-[76px] shrink-0 flex-col items-center gap-2 rounded-3xl py-4 md:flex"
+      aria-label="Main navigation"
+    >
+      <Link href="/" aria-label="Geekify home" className="accent-bg mb-3 flex h-11 w-11 items-center justify-center rounded-2xl text-black shadow-lg shadow-violet-500/20">
+        <Music2 className="h-5 w-5" />
+      </Link>
 
-      <div className="scrollbar-thin min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
-        <Link href="/liked" className={row(pathname === "/liked")}>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-[#4b3fd6]">
-            <Heart className="h-5 w-5 fill-white text-white" />
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-[15px] font-medium">Liked Songs</div>
-            <div className="truncate text-sm text-[#a7a7a7]">Playlist &middot; {liked.length} songs</div>
-          </div>
-        </Link>
-        {playlists.map((p) => {
-          const cover = artUrl(p.tracks[0]?.thumbnails, 80);
-          return (
-            <Link key={p.id} href={`/playlist/local/${p.id}`} className={row(pathname === `/playlist/local/${p.id}`)}>
-              {cover ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={cover} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
-              ) : (
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-[#282828]">
-                  <ListMusic className="h-5 w-5 text-[#a7a7a7]" />
-                </div>
-              )}
-              <div className="min-w-0">
-                <div className="truncate text-[15px] font-medium">{p.name}</div>
-                <div className="truncate text-sm text-[#a7a7a7]">Playlist &middot; {p.tracks.length} songs</div>
-              </div>
-            </Link>
-          );
-        })}
-        {!playlists.length && (
-          <div className="m-1 rounded-lg bg-[#1f1f1f] p-4">
-            <div className="font-semibold">Create your first playlist</div>
-            <p className="mt-1 text-sm text-[#a7a7a7]">It&apos;s easy, we&apos;ll help you.</p>
-          </div>
-        )}
-      </div>
+      {ITEMS.map(({ href, label, icon: Icon }) => {
+        const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-label={label}
+            aria-current={active ? "page" : undefined}
+            className={`group relative flex h-12 w-12 items-center justify-center rounded-2xl transition ${
+              active ? "bg-white/10 text-white" : "text-[#aeabcf] hover:bg-white/[0.06] hover:text-white"
+            }`}
+          >
+            {active && <span className="accent-bg absolute -left-[14px] h-6 w-1 rounded-r-full" />}
+            <Icon className={`h-5 w-5 ${active ? "text-brand" : ""}`} />
+            <span className={tip}>{label}</span>
+          </Link>
+        );
+      })}
+
+      <div className="my-1 h-px w-8 bg-white/10" />
+
+      <button
+        type="button"
+        aria-label="New playlist"
+        onClick={() => {
+          const name = window.prompt("Name your playlist", "My playlist");
+          if (!name) return;
+          const pl = createPlaylist(name);
+          router.push(`/playlist/local/${pl.id}`);
+        }}
+        className="group relative flex h-12 w-12 items-center justify-center rounded-2xl border border-dashed border-white/20 text-[#aeabcf] transition hover:border-brand hover:text-brand"
+      >
+        <Plus className="h-5 w-5" />
+        <span className={tip}>New playlist</span>
+      </button>
     </aside>
   );
 }

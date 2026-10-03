@@ -50,6 +50,15 @@ export type SearchResponse = {
 
 export type HomeResponse = { shelves: Shelf[] };
 
+export type Mix = {
+  id: string;
+  title: string;
+  subtitle: string;
+  tracks: Track[];
+};
+
+export type MixResponse = { mixes: Mix[]; seeds: string[] };
+
 export type ArtistPage = {
   id: string;
   name: string;

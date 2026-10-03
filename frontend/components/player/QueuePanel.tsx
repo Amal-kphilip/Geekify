@@ -46,7 +46,7 @@ function SortableItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 rounded-xl px-2 py-2 ${active ? "bg-[#2a2a2a]" : "hover:bg-[#1f1f1f]"}`}
+      className={`flex items-center gap-2 rounded-xl px-2 py-2 ${active ? "bg-[#25264a]" : "hover:bg-[#1d1e3d]"}`}
     >
       <button className="cursor-grab text-white/30" {...attributes} {...listeners} aria-label="Reorder">
         <GripVertical className="h-4 w-4" />
@@ -64,7 +64,7 @@ function SortableItem({
         )}
         <div className="min-w-0">
           <div className={`truncate text-sm ${active ? "text-brand" : ""}`}>{title}</div>
-          <div className="truncate text-xs text-[#a7a7a7]">{artist}</div>
+          <div className="truncate text-xs text-[#9d9bbd]">{artist}</div>
         </div>
       </button>
       <button type="button" onClick={() => removeFromQueue(index)} className="p-1 text-white/35 hover:text-white">
@@ -92,10 +92,10 @@ export function QueuePanel() {
   };
 
   return (
-    <aside className="flex h-full w-full flex-col bg-panel p-3 lg:w-[320px] lg:rounded-lg">
+    <aside className="flex h-full w-full flex-col glass-strong p-3 lg:w-[320px] lg:rounded-2xl">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-base font-bold">Queue</h3>
-        <button type="button" aria-label="Close queue" className="rounded-full p-2 text-[#b3b3b3] hover:text-white" onClick={() => setQueueOpen(false)}>
+        <button type="button" aria-label="Close queue" className="rounded-full p-2 text-[#aeabcf] hover:text-white" onClick={() => setQueueOpen(false)}>
           <X className="h-5 w-5" />
         </button>
       </div>

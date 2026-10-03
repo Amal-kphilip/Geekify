@@ -112,7 +112,7 @@ function SearchInner() {
             value={searchInput}
             onChange={(e) => handleQueryChange(e.target.value)}
             placeholder="Search songs, artists, albums, or playlists..."
-            className="w-full rounded-full bg-[#2a2a2a] px-5 py-3.5 text-base font-medium text-white placeholder:text-[#a7a7a7] outline-none ring-1 ring-transparent transition hover:bg-[#333] focus:ring-2 focus:ring-white"
+            className="w-full rounded-full bg-[#25264a] px-5 py-3.5 text-base font-medium text-white placeholder:text-[#9d9bbd] outline-none ring-1 ring-transparent transition hover:bg-[#2e2f58] focus:ring-2 focus:ring-white"
             autoFocus={!initialQ}
           />
           {searchInput && (
@@ -139,7 +139,7 @@ function SearchInner() {
                 key={tag}
                 type="button"
                 onClick={() => handleQueryChange(tag)}
-                className="cursor-pointer rounded-full bg-[#2a2a2a] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#333]"
+                className="cursor-pointer rounded-full bg-[#25264a] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2e2f58]"
               >
                 {tag}
               </button>
@@ -159,7 +159,7 @@ function SearchInner() {
               className={`cursor-pointer rounded-full px-4 py-1.5 text-sm font-medium capitalize transition ${
                 type === t
                   ? "bg-brand text-black"
-                  : "bg-[#2a2a2a] text-white hover:bg-[#333]"
+                  : "bg-[#25264a] text-white hover:bg-[#2e2f58]"
               }`}
             >
               {t === "song" ? "songs" : t}
@@ -180,14 +180,14 @@ function SearchInner() {
 
       {/* Error Message */}
       {error && !loading && (
-        <div className="glass rounded-lg p-4 text-sm text-amber-200">
+        <div className="glass rounded-2xl p-4 text-sm text-amber-200">
           {error}
         </div>
       )}
 
       {/* Empty State */}
       {empty && (
-        <div className="glass rounded-lg p-8 text-center text-white/50">
+        <div className="glass rounded-2xl p-8 text-center text-white/50">
           No music found for &ldquo;{activeQuery}&rdquo;. Try another search.
         </div>
       )}
@@ -268,7 +268,7 @@ function SearchInner() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="h-40 animate-pulse rounded-lg bg-white/5" />}>
+    <Suspense fallback={<div className="h-40 animate-pulse rounded-2xl bg-white/5" />}>
       <SearchInner />
     </Suspense>
   );

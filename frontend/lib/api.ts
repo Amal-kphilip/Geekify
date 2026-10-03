@@ -2,6 +2,7 @@ import type {
   ArtistPage,
   CollectionPage,
   HomeResponse,
+  MixResponse,
   SearchResponse,
   Track,
 } from "./types";
@@ -72,6 +73,32 @@ function extractReason(detail: unknown): string | undefined {
   return undefined;
 }
 
+export type Signal = { videoId: string; artist: string; title: string };
+
+function apiBase(): string {
+  return (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
+}
+
+async function postJson<T>(path: string, body: unknown, attempt = 0): Promise<T> {
+  try {
+    const res = await fetch(`${apiBase()}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    if (res.status >= 500 && attempt < 2) throw new Error("retry");
+    if (!res.ok) throw new Error(friendlyStatus(res.status));
+    return (await res.json()) as T;
+  } catch (e) {
+    if (attempt < 2) {
+      await sleep(1500 * (attempt + 1));
+      return postJson<T>(path, body, attempt + 1);
+    }
+    throw e instanceof Error && e.message !== "retry" ? e : new Error("Cannot reach the server. Try again shortly.");
+  }
+}
+
 export const api = {
   search: (q: string, type?: string) => {
     const params = new URLSearchParams({ q });
@@ -80,6 +107,8 @@ export const api = {
   },
   track: (id: string) => getJson<Track>(`/api/track/${id}`),
   home: () => getJson<HomeResponse>(`/api/home?seed=${Math.floor(Math.random() * 1e9)}`),
+  recommend: (liked: Signal[], recent: Signal[]) =>
+    postJson<MixResponse>("/api/recommend/mix", { liked, recent }),
   related: (id: string) => getJson<Track[]>(`/api/related/${id}`),
   artist: (id: string) => getJson<ArtistPage>(`/api/artist/${encodeURIComponent(id)}`),
   album: (id: string) => getJson<CollectionPage>(`/api/album/${encodeURIComponent(id)}`),

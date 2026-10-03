@@ -11,13 +11,13 @@ export default function LikedPage() {
   return (
     <div>
       <div className="mb-6 flex items-end gap-5">
-        <div className="flex h-36 w-36 items-center justify-center rounded-md bg-[#4b3fd6] shadow-xl shadow-black/40">
+        <div className="flex h-36 w-36 items-center justify-center rounded-xl bg-[#4b3fd6] shadow-xl shadow-black/40">
           <Heart className="h-14 w-14 fill-white text-white" />
         </div>
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-white/70">Playlist</div>
-          <h1 className="text-4xl font-extrabold md:text-6xl">Liked songs</h1>
-          <p className="mt-2 text-sm text-[#b3b3b3]">{liked.length} tracks</p>
+          <h1 className="text-4xl font-extrabold md:text-6xl">Favourites</h1>
+          <p className="mt-2 text-sm text-[#aeabcf]">{liked.length} tracks</p>
           {liked[0] && (
             <button
               type="button"

@@ -30,14 +30,14 @@ export function TrackRow({
 
   return (
     <div
-      className={`group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md px-2 py-2 transition hover:bg-white/10 ${
+      className={`group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-white/10 ${
         active ? "bg-white/10" : ""
       }`}
     >
       <button
         type="button"
         onClick={() => play(track, queue)}
-        className="relative h-11 w-11 overflow-hidden rounded-lg"
+        className="relative h-11 w-11 overflow-hidden rounded-2xl"
       >
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -45,7 +45,7 @@ export function TrackRow({
         ) : (
           <div className="h-full w-full bg-white/10" />
         )}
-        <span className="absolute inset-0 hidden items-center justify-center bg-black/45 group-hover:flex">
+        <span className="absolute inset-0 hidden items-center justify-center bg-ink/45 group-hover:flex">
           <Play className="h-4 w-4 fill-white text-white" />
         </span>
         {typeof index === "number" && (
@@ -58,7 +58,7 @@ export function TrackRow({
         <div className={`truncate text-sm ${active ? "text-brand" : ""}`}>
           {track.title}
         </div>
-        <div className="truncate text-xs text-[#a7a7a7]">{track.artist}</div>
+        <div className="truncate text-xs text-[#9d9bbd]">{track.artist}</div>
       </button>
       <div className="flex items-center gap-1 text-white/60">
         <span className="mr-2 hidden text-xs tabular-nums sm:inline">{track.duration}</span>
@@ -95,7 +95,7 @@ export function TrackRow({
                 className="fixed inset-0 z-30 cursor-default"
                 onClick={() => setMenuOpen(false)}
               />
-              <div className="absolute right-0 z-40 mt-1 max-h-60 w-52 overflow-y-auto rounded-md bg-[#282828] p-1 text-sm text-white shadow-xl scrollbar-thin">
+              <div className="absolute right-0 z-40 mt-1 max-h-60 w-52 overflow-y-auto rounded-xl bg-[#202145] p-1 text-sm text-white shadow-xl scrollbar-thin">
                 {playlists.map((pl) => (
                   <button
                     key={pl.id}

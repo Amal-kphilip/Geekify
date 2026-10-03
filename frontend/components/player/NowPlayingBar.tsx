@@ -22,7 +22,7 @@ import { PlayPauseMorph } from "./PlayPauseMorph";
 import { SeekBar } from "./SeekBar";
 
 /**
- * Player bar. Desktop: Spotify-style 3-column bar. Mobile: compact card above the bottom nav
+ * Player bar. Desktop: 3-column dock. Mobile: compact card above the bottom nav
  * (tap it to open the full player, which has the timeline).
  */
 export function NowPlayingBar() {
@@ -64,27 +64,27 @@ export function NowPlayingBar() {
       type="button"
       onClick={() => toggleLike(track)}
       className={`rounded-full p-2 transition hover:scale-105 ${cls}`}
-      title={liked ? "Remove from Liked Songs" : "Save to Liked Songs"}
+      title={liked ? "Remove from Favourites" : "Save to Favourites"}
       aria-label={liked ? "Unlike" : "Like"}
       aria-pressed={liked}
     >
-      <Heart className={`h-5 w-5 ${liked ? "fill-brand text-brand" : "text-[#b3b3b3] hover:text-white"}`} />
+      <Heart className={`h-5 w-5 ${liked ? "fill-brand text-brand" : "text-[#aeabcf] hover:text-white"}`} />
     </button>
   );
 
   const iconBtn = (active: boolean) =>
-    `relative rounded-full p-2 transition ${active ? "text-brand" : "text-[#b3b3b3] hover:text-white"}`;
+    `relative rounded-full p-2 transition ${active ? "text-brand" : "text-[#aeabcf] hover:text-white"}`;
 
   return (
     <>
       {playError && (
-        <div className="shrink-0 bg-black px-4 py-1 text-center text-xs text-amber-300" role="alert">
+        <div className="shrink-0 bg-ink px-4 py-1 text-center text-xs text-amber-300" role="alert">
           {playError}
         </div>
       )}
 
       {/* ---------- Mobile mini player ---------- */}
-      <div className="relative mx-2 mb-1 shrink-0 overflow-hidden rounded-lg bg-[#2a2a2a] md:hidden">
+      <div className="relative mx-2 mb-1 shrink-0 overflow-hidden rounded-2xl glass-strong md:hidden">
         <div className="flex items-center gap-2 p-2 pr-1">
           <button
             type="button"
@@ -100,7 +100,7 @@ export function NowPlayingBar() {
             )}
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">{track.title}</div>
-              <div className="truncate text-xs text-[#b3b3b3]">{track.artist}</div>
+              <div className="truncate text-xs text-[#aeabcf]">{track.artist}</div>
             </div>
           </button>
           {likeBtn("")}
@@ -119,24 +119,25 @@ export function NowPlayingBar() {
       </div>
 
       {/* ---------- Desktop bar ---------- */}
-      <div className="hidden h-[84px] shrink-0 grid-cols-[1fr_minmax(0,2fr)_1fr] items-center gap-4 px-3 md:grid">
+      <div className="glass-strong mx-3 mb-3 hidden h-[88px] shrink-0 grid-cols-[1fr_minmax(0,2fr)_1fr] items-center gap-4 rounded-3xl px-5 shadow-2xl shadow-black/40 md:grid">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
             onClick={() => setExpanded(true)}
             aria-label="Open full player"
-            className="shrink-0"
+            className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full ring-2 ring-white/10"
           >
             {src ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={src} alt="" className="h-14 w-14 rounded object-cover" />
+              <img src={src} alt="" className={`record h-full w-full rounded-full object-cover ${isPlaying ? "is-playing" : ""}`} />
             ) : (
-              <div className="h-14 w-14 rounded bg-white/10" />
+              <div className="h-full w-full rounded-full bg-white/10" />
             )}
+            <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink ring-2 ring-white/25" />
           </button>
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{track.title}</div>
-            <div className="truncate text-xs text-[#b3b3b3]">{track.artist}</div>
+            <div className="truncate text-xs text-[#aeabcf]">{track.artist}</div>
           </div>
           {likeBtn("")}
         </div>
@@ -147,18 +148,18 @@ export function NowPlayingBar() {
               <Shuffle className="h-4 w-4" />
               {shuffle && <span className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-brand" />}
             </button>
-            <button type="button" onClick={previous} className="rounded-full p-2 text-[#b3b3b3] transition hover:text-white" aria-label="Previous">
+            <button type="button" onClick={previous} className="rounded-full p-2 text-[#aeabcf] transition hover:text-white" aria-label="Previous">
               <SkipBack className="h-5 w-5 fill-current" />
             </button>
             <button
               type="button"
               onClick={togglePlay}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white transition hover:scale-105"
+              className="accent-bg flex h-10 w-10 items-center justify-center rounded-full shadow-lg shadow-violet-500/30 transition hover:scale-105"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               <PlayPauseMorph playing={isPlaying} loading={loading} />
             </button>
-            <button type="button" onClick={next} className="rounded-full p-2 text-[#b3b3b3] transition hover:text-white" aria-label="Next">
+            <button type="button" onClick={next} className="rounded-full p-2 text-[#aeabcf] transition hover:text-white" aria-label="Next">
               <SkipForward className="h-5 w-5 fill-current" />
             </button>
             <button type="button" onClick={cycleRepeat} className={iconBtn(repeatMode !== "off")} aria-label="Repeat" aria-pressed={repeatMode !== "off"}>

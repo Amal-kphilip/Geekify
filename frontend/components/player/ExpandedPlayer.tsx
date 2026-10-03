@@ -61,7 +61,7 @@ export function ExpandedPlayer() {
       exit={{ opacity: 0, y: 24 }}
       transition={{ duration: 0.2 }}
       className="fixed inset-0 z-[100] flex flex-col overflow-y-auto overflow-x-hidden px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]"
-      style={{ background: `linear-gradient(180deg, ${tint} 0%, rgba(0,0,0,0.55) 45%, #121212 100%), #121212` }}
+      style={{ background: `linear-gradient(180deg, ${tint} 0%, rgba(0,0,0,0.55) 45%, #14152e 100%), #14152e` }}
     >
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col">
         <div className="flex items-center justify-between py-2">
@@ -93,11 +93,11 @@ export function ExpandedPlayer() {
               ref={imgRef}
               src={src}
               alt=""
-              className="aspect-square rounded-lg object-cover shadow-2xl shadow-black/50"
+              className="aspect-square rounded-2xl object-cover shadow-2xl shadow-black/50"
               style={{ width: "min(100%, 44dvh)" }}
             />
           ) : (
-            <div className="aspect-square rounded-lg bg-white/10" style={{ width: "min(100%, 44dvh)" }} />
+            <div className="aspect-square rounded-2xl bg-white/10" style={{ width: "min(100%, 44dvh)" }} />
           )}
         </div>
 

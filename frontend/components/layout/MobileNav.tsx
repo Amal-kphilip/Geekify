@@ -8,21 +8,21 @@ import { useLibraryStore } from "@/store/useLibraryStore";
 const items = [
   { href: "/", label: "Home", icon: Home },
   { href: "/search", label: "Search", icon: Search },
-  { href: "/library", label: "Your Library", icon: Library },
+  { href: "/library", label: "Your Collection", icon: Library },
 ] as const;
 
-/** Mobile bottom navigation: Home / Search / Your Library / Create. */
+/** Mobile bottom navigation: Home / Search / Your Collection / Create. */
 export function MobileNav() {
   const pathname = usePathname();
   const router = useRouter();
   const createPlaylist = useLibraryStore((s) => s.createPlaylist);
 
   const cls = (active: boolean) =>
-    `flex flex-1 flex-col items-center gap-1 py-2 text-[11px] transition ${active ? "text-white" : "text-[#a7a7a7]"}`;
+    `flex flex-1 flex-col items-center gap-1 py-2 text-[11px] transition ${active ? "text-brand" : "text-[#9d9bbd]"}`;
 
   return (
     <nav
-      className="flex shrink-0 bg-black pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="glass-strong mx-2 mb-2 flex shrink-0 rounded-3xl pb-[env(safe-area-inset-bottom)] md:hidden"
       aria-label="Main navigation"
     >
       {items.map(({ href, label, icon: Icon }) => {
