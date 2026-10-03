@@ -7,9 +7,9 @@ from cachetools import TTLCache
 
 # Search / browse: 15 minutes
 # Resolved stream URLs: ~5 hours (Google CDN URLs expire)
-_search = TTLCache(maxsize=512, ttl=15 * 60)
-_browse = TTLCache(maxsize=256, ttl=15 * 60)
-_streams = TTLCache(maxsize=256, ttl=5 * 60 * 60)
+_search = TTLCache(maxsize=128, ttl=15 * 60)
+_browse = TTLCache(maxsize=96, ttl=15 * 60)
+_streams = TTLCache(maxsize=128, ttl=5 * 60 * 60)
 _lock = Lock()
 
 

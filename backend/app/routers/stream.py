@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 
 from app import cache
 from app.cache import drop_stream
-from app.services.cipher import diagnose, extract_url_with_ytdlp
+from app.services.cipher import ResolverBusy, diagnose, extract_url_with_ytdlp
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -48,7 +48,6 @@ _http = httpx.AsyncClient(
 # and cap background prewarms so a small free-tier box isn't starved.
 _inflight: dict[str, threading.Lock] = {}
 _inflight_guard = threading.Lock()
-_prewarm_slots = threading.BoundedSemaphore(2)
 
 
 @dataclass
@@ -60,7 +59,7 @@ class ResolvedStream:
     headers: dict | None = None
 
 
-def _resolve_stream_sync(video_id: str) -> ResolvedStream:
+def _resolve_stream_sync(video_id: str, *, blocking: bool = True) -> ResolvedStream:
     cached = cache.get_stream(video_id)
     if isinstance(cached, ResolvedStream):
         return cached
@@ -74,7 +73,13 @@ def _resolve_stream_sync(video_id: str) -> ResolvedStream:
             if isinstance(cached, ResolvedStream):
                 return cached
             try:
-                url, mime, fmt_headers = extract_url_with_ytdlp(video_id)
+                url, mime, fmt_headers = extract_url_with_ytdlp(video_id, blocking=blocking)
+            except ResolverBusy as exc:
+                raise HTTPException(
+                    status_code=503,
+                    detail={"error": "busy", "reason": str(exc), "videoId": video_id},
+                    headers={"Retry-After": "5"},
+                ) from exc
             except Exception as exc:
                 logger.warning("yt-dlp resolution failed for %s: %s", video_id, exc)
                 raise HTTPException(
@@ -97,14 +102,11 @@ def _resolve_stream_sync(video_id: str) -> ResolvedStream:
 def _prewarm_sync(video_id: str) -> None:
     if isinstance(cache.get_stream(video_id), ResolvedStream):
         return
-    if not _prewarm_slots.acquire(blocking=False):
-        return  # busy; the real request will resolve it on demand
     try:
-        _resolve_stream_sync(video_id)
+        # Never queue behind (or alongside) a real request: if the resolver is busy, skip.
+        _resolve_stream_sync(video_id, blocking=False)
     except Exception:  # noqa: BLE001 - best effort only
         pass
-    finally:
-        _prewarm_slots.release()
 
 
 @router.get("/prewarm/{video_id}")

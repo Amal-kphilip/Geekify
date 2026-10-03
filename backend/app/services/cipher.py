@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import ctypes
+import gc
 import logging
+import threading
+from contextlib import contextmanager
 import base64
 import os
 import shutil
@@ -14,6 +18,39 @@ import yt_dlp
 from app.models import ArtistRef, Thumbnail, Track
 
 logger = logging.getLogger(__name__)
+
+
+class ResolverBusy(RuntimeError):
+    """Another yt-dlp resolution is running and we were told not to wait."""
+
+
+# Each yt-dlp run can launch a Deno process to solve YouTube's JS challenge
+# (100-250 MB). On a 512 MB host, two at once get the service OOM-killed, so
+# every resolution goes through this gate (override with YTDLP_MAX_CONCURRENT).
+_GATE = threading.BoundedSemaphore(max(1, int(os.environ.get("YTDLP_MAX_CONCURRENT", "1"))))
+
+
+def _release_memory() -> None:
+    gc.collect()
+    try:  # hand freed heap pages back to the OS (glibc only; harmless elsewhere)
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@contextmanager
+def resolver_slot(blocking: bool = True, timeout: float = 120.0):
+    if blocking:
+        acquired = _GATE.acquire(timeout=timeout)
+    else:
+        acquired = _GATE.acquire(blocking=False)
+    if not acquired:
+        raise ResolverBusy("Server is busy resolving another track. Try again in a moment.")
+    try:
+        yield
+    finally:
+        _GATE.release()
+        _release_memory()
 
 # Player clients understood by current yt-dlp releases (the old android_music /
 # ios_music / android_creator / safari names no longer exist and were ignored).
@@ -184,8 +221,13 @@ def _attempts() -> list[tuple[str, list[str], bool, str]]:
     return out
 
 
-def extract_url_with_ytdlp(video_id: str) -> tuple[str, str, dict[str, str]]:
+def extract_url_with_ytdlp(video_id: str, *, blocking: bool = True) -> tuple[str, str, dict[str, str]]:
     """Return (url, mime_type, request_headers) using yt-dlp, picking the best playable audio stream."""
+    with resolver_slot(blocking=blocking):
+        return _extract_url_locked(video_id)
+
+
+def _extract_url_locked(video_id: str) -> tuple[str, str, dict[str, str]]:
     errs: list[str] = []
     for label, clients, use_cookies, url_t in _attempts():
         try:
@@ -223,6 +265,11 @@ class _CollectLogger:
 
 
 def diagnose(video_id: str) -> dict[str, Any]:
+    with resolver_slot(blocking=True, timeout=120.0):
+        return _diagnose_locked(video_id)
+
+
+def _diagnose_locked(video_id: str) -> dict[str, Any]:
     """Run every resolution attempt and report what yt-dlp said (for debugging hosted deployments)."""
     import shutil as _sh
 
@@ -251,6 +298,11 @@ def diagnose(video_id: str) -> dict[str, Any]:
 
 
 def extract_track_with_ytdlp(video_id: str) -> Track:
+    with resolver_slot(blocking=True, timeout=60.0):
+        return _extract_track_locked(video_id)
+
+
+def _extract_track_locked(video_id: str) -> Track:
     """Return a Track model populated from yt-dlp metadata."""
     try:
         with yt_dlp.YoutubeDL(_get_ydl_opts(_CLIENTS_PRIMARY)) as ydl:

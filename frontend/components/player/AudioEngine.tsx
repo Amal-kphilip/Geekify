@@ -9,7 +9,8 @@ export function AudioEngine() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playPromiseRef = useRef<Promise<void> | null>(null);
   const seekLock = useRef(false);
-  const retriedRef = useRef<string | null>(null);
+  const retriesRef = useRef(0);
+  const retryTimer = useRef<number | undefined>(undefined);
 
   // Ask the backend why a stream failed so the UI can show the real reason.
   const explainFailure = async (videoId: string): Promise<string> => {
@@ -20,7 +21,7 @@ export function AudioEngine() {
       const d = body?.detail;
       return (typeof d === "string" ? d : d?.reason) || `Stream request failed (HTTP ${res.status}).`;
     } catch {
-      return "Cannot reach the backend. Is it running on port 8000?";
+      return "The server is waking up or restarting. Please try again in a minute.";
     }
   };
 
@@ -80,14 +81,20 @@ export function AudioEngine() {
     const onBufferEnd = () => setBuffering(false);
     const onErr = () => {
       const track = usePlayerStore.getState().currentTrack;
-      // Stream URLs expire; retry once with a fresh resolve before giving up.
-      if (track && retriedRef.current !== track.videoId) {
-        retriedRef.current = track.videoId;
-        audio.src = `${streamUrl(track.videoId)}?retry=${Date.now()}`;
-        audio.load();
-        if (usePlayerStore.getState().isPlaying) {
-          audio.play().catch(() => undefined);
-        }
+      // Stream URLs expire and a free-tier backend may be asleep or restarting:
+      // retry a few times (immediately, then after short waits) before giving up.
+      if (track && retriesRef.current < 3) {
+        const delay = retriesRef.current === 0 ? 0 : 7000;
+        retriesRef.current += 1;
+        window.clearTimeout(retryTimer.current);
+        retryTimer.current = window.setTimeout(() => {
+          if (usePlayerStore.getState().currentTrack?.videoId !== track.videoId) return;
+          audio.src = `${streamUrl(track.videoId)}?retry=${Date.now()}`;
+          audio.load();
+          if (usePlayerStore.getState().isPlaying) {
+            audio.play().catch(() => undefined);
+          }
+        }, delay);
         return;
       }
       setBuffering(false);
@@ -130,7 +137,8 @@ export function AudioEngine() {
 
     setPlayError(null);
     setBuffering(true);
-    retriedRef.current = null;
+    retriesRef.current = 0;
+    window.clearTimeout(retryTimer.current);
     audio.src = streamUrl(currentTrack.videoId);
     audio.load();
 
@@ -163,19 +171,12 @@ export function AudioEngine() {
   // while the current song plays, so skipping / auto-advance starts almost instantly.
   useEffect(() => {
     if (!currentTrack || isBuffering || !queue.length) return;
+    // Only warm the single next track (each warm-up runs yt-dlp, which is memory-heavy
+    // on a small host). Shuffle order is unpredictable, so skip it there.
+    if (shuffle) return;
     const ids: string[] = [];
-    if (shuffle) {
-      // Unpredictable order: warm a couple of random upcoming candidates.
-      const others = queue.filter((t) => t.videoId !== currentTrack.videoId);
-      for (let i = 0; i < Math.min(2, others.length); i++) {
-        ids.push(others[Math.floor(Math.random() * others.length)].videoId);
-      }
-    } else {
-      for (let i = 1; i <= 2; i++) {
-        const t = queue[queueIndex + i];
-        if (t) ids.push(t.videoId);
-      }
-    }
+    const nextTrack = queue[queueIndex + 1];
+    if (nextTrack) ids.push(nextTrack.videoId);
     const fresh = ids.filter((id) => !prewarmedRef.current.has(id));
     if (!fresh.length) return;
     // Let the current track start first so we don't compete with it for the backend.
