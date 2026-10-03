@@ -11,18 +11,18 @@ export default function LikedPage() {
   return (
     <div>
       <div className="mb-6 flex items-end gap-5">
-        <div className="flex h-36 w-36 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-600 to-cyan-500 shadow-glow">
+        <div className="flex h-36 w-36 items-center justify-center rounded-md bg-[#4b3fd6] shadow-xl shadow-black/40">
           <Heart className="h-14 w-14 fill-white text-white" />
         </div>
         <div>
-          <div className="text-xs uppercase tracking-widest text-white/45">Playlist</div>
-          <h1 className="text-4xl font-semibold">Liked songs</h1>
-          <p className="mt-2 text-sm text-white/50">{liked.length} tracks</p>
+          <div className="text-xs font-bold uppercase tracking-widest text-white/70">Playlist</div>
+          <h1 className="text-4xl font-extrabold md:text-6xl">Liked songs</h1>
+          <p className="mt-2 text-sm text-[#b3b3b3]">{liked.length} tracks</p>
           {liked[0] && (
             <button
               type="button"
               onClick={() => play(liked[0], liked)}
-              className="mt-4 rounded-full bg-white px-5 py-2 text-sm font-medium text-black"
+              className="mt-4 rounded-full bg-brand px-6 py-2.5 text-sm font-bold text-black transition hover:scale-105"
             >
               Play
             </button>

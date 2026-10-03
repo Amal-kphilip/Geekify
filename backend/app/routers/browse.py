@@ -1,20 +1,24 @@
 from __future__ import annotations
 
 import logging
+import random
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from app import cache
-from app.models import ArtistPage, CollectionPage, HomeResponse
+from app.models import ArtistPage, CollectionPage, HomeResponse, Shelf
 from app.models import Track
 from app.services.innertube_client import (
     music_browse,
     music_next,
     music_radio,
+    music_search,
     parse_artist,
     parse_collection,
     parse_home,
+    parse_search,
 )
 from app.services.parsers import extract_tracks
 
@@ -33,30 +37,86 @@ def _load_home_endpoint(endpoint: str):
         return []
 
 
-@router.get("/home", response_model=HomeResponse)
-def home():
-    hit = cache.get_browse("home_rich")
+# (shelf title, search query, result kind). A few are picked at random on every
+# home load so the page doesn't look identical each visit.
+_GENRE_SHELVES: list[tuple[str, str, str]] = [
+    ("Malayalam hits", "Malayalam hits", "playlist"),
+    ("Malayalam new releases", "new Malayalam songs", "album"),
+    ("Hindi hits", "Hindi hits", "playlist"),
+    ("Tamil hits", "Tamil hits", "playlist"),
+    ("Telugu hits", "Telugu hits", "playlist"),
+    ("Punjabi hits", "Punjabi hits", "playlist"),
+    ("Hip-hop", "hip hop hits", "playlist"),
+    ("Pop hits", "pop hits", "playlist"),
+    ("Lo-fi & chill", "lofi chill beats", "playlist"),
+    ("Workout", "workout music", "playlist"),
+    ("Throwback", "throwback hits", "playlist"),
+    ("Party", "party songs", "playlist"),
+    ("Rock classics", "classic rock", "playlist"),
+    ("Romantic", "romantic songs", "playlist"),
+    ("K-pop", "k-pop hits", "playlist"),
+    ("Fresh albums", "new albums", "album"),
+]
+
+
+def _genre_shelf(spec: tuple[str, str, str]) -> Optional[Shelf]:
+    title, query, kind = spec
+    try:
+        key = f"{query}|{kind}"  # same key format as the /search route, so the cache is shared
+        parsed = cache.get_search(key)
+        if not parsed:
+            parsed = parse_search(music_search(query, kind), query, kind)
+            if parsed.albums or parsed.playlists:
+                cache.set_search(key, parsed)
+        cards = parsed.playlists if kind == "playlist" else parsed.albums
+        return Shelf(title=title, items=list(cards[:20])) if cards else None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("genre shelf %s failed: %s", title, exc)
+        return None
+
+
+def _home_pool() -> list[Shelf]:
+    """Generic YouTube Music shelves; cached for a while because they are slow to fetch."""
+    hit = cache.get_browse("home_pool")
     if hit:
         return hit
-
     with ThreadPoolExecutor(max_workers=len(_HOME_ENDPOINTS)) as pool:
         results = list(pool.map(_load_home_endpoint, _HOME_ENDPOINTS))
-
-    combined_shelves = []
+    combined: list[Shelf] = []
     seen_titles: set[str] = set()
     for shelves in results:
         for s in shelves:
             title_clean = s.title.strip().lower()
             if title_clean not in seen_titles and len(s.items) > 0:
                 seen_titles.add(title_clean)
-                combined_shelves.append(s)
+                combined.append(s)
+    if combined:
+        cache.set_browse("home_pool", combined)
+    return combined
 
-    if not combined_shelves:
+
+@router.get("/home", response_model=HomeResponse)
+def home(response: Response, seed: Optional[int] = Query(None)):
+    # The browser / CDN must never cache this: every page load should get a fresh mix.
+    response.headers["Cache-Control"] = "no-store"
+    rng = random.Random(seed) if seed is not None else random.Random()
+
+    picks = rng.sample(_GENRE_SHELVES, 4)
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        genre_future = [ex.submit(_genre_shelf, spec) for spec in picks]
+        pool = _home_pool()
+        genre_shelves = [f.result() for f in genre_future]
+    genre_shelves = [g for g in genre_shelves if g]
+
+    shelves = [Shelf(title=s.title, items=rng.sample(list(s.items), len(s.items))) for s in pool]
+    rng.shuffle(shelves)
+    # Drop in the genre shelves at random positions near the top.
+    for g in genre_shelves:
+        shelves.insert(rng.randint(0, min(4, len(shelves))), g)
+
+    if not shelves:
         raise HTTPException(status_code=502, detail="Could not load the YouTube Music home feed. Try again shortly.")
-
-    res = HomeResponse(shelves=combined_shelves[:20])
-    cache.set_browse("home_rich", res)
-    return res
+    return HomeResponse(shelves=shelves[:18])
 
 
 @router.get("/related/{video_id}", response_model=list[Track])

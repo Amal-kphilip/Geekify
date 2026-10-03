@@ -27,7 +27,7 @@ export default function PlaylistPage() {
       });
   }, [id]);
 
-  if (error) return <div className="glass rounded-2xl p-6 text-amber-200">{error}</div>;
+  if (error) return <div className="glass rounded-lg p-6 text-amber-200">{error}</div>;
   if (!data) return <div className="h-64 animate-pulse rounded-3xl bg-white/5" />;
   const cover = artUrl(data.thumbnails, 400);
 
@@ -36,7 +36,7 @@ export default function PlaylistPage() {
       <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end">
         {cover && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt="" className="h-48 w-48 rounded-2xl object-cover shadow-2xl" />
+          <img src={cover} alt="" className="h-48 w-48 rounded-lg object-cover shadow-2xl" />
         )}
         <div>
           <div className="text-xs uppercase tracking-widest text-white/45">Playlist</div>

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 
@@ -35,6 +36,21 @@ _FORWARD_RESPONSE = {
 }
 
 
+# One pooled client for all proxied streams: re-using connections avoids a TLS
+# handshake to googlevideo on every track change.
+_http = httpx.AsyncClient(
+    follow_redirects=True,
+    timeout=httpx.Timeout(60.0, connect=15.0),
+    limits=httpx.Limits(max_connections=40, max_keepalive_connections=10, keepalive_expiry=60),
+)
+
+# Only resolve one video_id at a time (prewarm + real request share the result),
+# and cap background prewarms so a small free-tier box isn't starved.
+_inflight: dict[str, threading.Lock] = {}
+_inflight_guard = threading.Lock()
+_prewarm_slots = threading.BoundedSemaphore(2)
+
+
 @dataclass
 class ResolvedStream:
     url: str
@@ -49,23 +65,55 @@ def _resolve_stream_sync(video_id: str) -> ResolvedStream:
     if isinstance(cached, ResolvedStream):
         return cached
 
-    # Primary path: yt-dlp multi-client extractor
+    with _inflight_guard:
+        lock = _inflight.setdefault(video_id, threading.Lock())
     try:
-        url, mime, fmt_headers = extract_url_with_ytdlp(video_id)
-        resolved = ResolvedStream(url=url, mime=mime, itag=None, client="yt-dlp", headers=fmt_headers)
-        cache.set_stream(video_id, resolved)
-        return resolved
-    except Exception as exc:
-        logger.warning("yt-dlp resolution failed for %s: %s", video_id, exc)
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "error": "stream_unavailable",
-                "status": "ERROR",
-                "reason": str(exc),
-                "videoId": video_id,
-            },
-        ) from exc
+        with lock:
+            # Another thread (e.g. a prewarm) may have finished while we waited.
+            cached = cache.get_stream(video_id)
+            if isinstance(cached, ResolvedStream):
+                return cached
+            try:
+                url, mime, fmt_headers = extract_url_with_ytdlp(video_id)
+            except Exception as exc:
+                logger.warning("yt-dlp resolution failed for %s: %s", video_id, exc)
+                raise HTTPException(
+                    status_code=502,
+                    detail={
+                        "error": "stream_unavailable",
+                        "status": "ERROR",
+                        "reason": str(exc),
+                        "videoId": video_id,
+                    },
+                ) from exc
+            resolved = ResolvedStream(url=url, mime=mime, itag=None, client="yt-dlp", headers=fmt_headers)
+            cache.set_stream(video_id, resolved)
+            return resolved
+    finally:
+        with _inflight_guard:
+            _inflight.pop(video_id, None)
+
+
+def _prewarm_sync(video_id: str) -> None:
+    if isinstance(cache.get_stream(video_id), ResolvedStream):
+        return
+    if not _prewarm_slots.acquire(blocking=False):
+        return  # busy; the real request will resolve it on demand
+    try:
+        _resolve_stream_sync(video_id)
+    except Exception:  # noqa: BLE001 - best effort only
+        pass
+    finally:
+        _prewarm_slots.release()
+
+
+@router.get("/prewarm/{video_id}")
+async def prewarm(video_id: str, background: BackgroundTasks):
+    """Resolve + cache the stream URL ahead of time so the next track starts instantly."""
+    if isinstance(cache.get_stream(video_id), ResolvedStream):
+        return {"cached": True}
+    background.add_task(run_in_threadpool, _prewarm_sync, video_id)
+    return {"cached": False, "queued": True}
 
 
 @router.get("/diag/{video_id}")
@@ -101,14 +149,12 @@ async def stream(video_id: str, request: Request):
     if if_range := request.headers.get("if-range"):
         headers["If-Range"] = if_range
 
-    client = httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(60.0, connect=15.0))
     try:
-        upstream = await client.send(
-            client.build_request("GET", resolved.url, headers=headers),
+        upstream = await _http.send(
+            _http.build_request("GET", resolved.url, headers=headers),
             stream=True,
         )
     except Exception as exc:  # noqa: BLE001
-        await client.aclose()
         drop_stream(video_id)
         logger.warning("upstream stream failed, cache dropped: %s", exc)
         raise HTTPException(status_code=502, detail={"error": "cdn_error", "reason": str(exc), "videoId": video_id}) from exc
@@ -117,7 +163,6 @@ async def stream(video_id: str, request: Request):
     if upstream.status_code >= 400 and upstream.status_code != 416:
         code = upstream.status_code
         await upstream.aclose()
-        await client.aclose()
         drop_stream(video_id)
         logger.warning("googlevideo returned %s for %s (url cache dropped)", code, video_id)
         raise HTTPException(
@@ -146,7 +191,6 @@ async def stream(video_id: str, request: Request):
 
     if request.method == "HEAD":
         await upstream.aclose()
-        await client.aclose()
         return Response(status_code=upstream.status_code, headers=resp_headers)
 
     async def body():
@@ -155,6 +199,5 @@ async def stream(video_id: str, request: Request):
                 yield chunk
         finally:
             await upstream.aclose()
-            await client.aclose()
 
     return StreamingResponse(body(), status_code=upstream.status_code, headers=resp_headers, media_type=resolved.mime)

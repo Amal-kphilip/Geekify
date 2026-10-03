@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { api, streamUrl } from "@/lib/api";
+import { api, prewarmStream, streamUrl } from "@/lib/api";
 import { usePlayerStore } from "@/store/usePlayerStore";
+import { useHistoryStore } from "@/store/useHistoryStore";
 
 export function AudioEngine() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playPromiseRef = useRef<Promise<void> | null>(null);
   const seekLock = useRef(false);
-  const rafRef = useRef<number>(0);
   const retriedRef = useRef<string | null>(null);
 
   // Ask the backend why a stream failed so the UI can show the real reason.
@@ -51,7 +51,12 @@ export function AudioEngine() {
   const setPlaying = usePlayerStore((s) => s.setPlaying);
   const setProgress = usePlayerStore((s) => s.setProgress);
   const setPlayError = usePlayerStore((s) => s.setPlayError);
-  const setAnalyserBins = usePlayerStore((s) => s.setAnalyserBins);
+  const setBuffering = usePlayerStore((s) => s.setBuffering);
+  const queue = usePlayerStore((s) => s.queue);
+  const queueIndex = usePlayerStore((s) => s.queueIndex);
+  const shuffle = usePlayerStore((s) => s.shuffle);
+  const isBuffering = usePlayerStore((s) => s.isBuffering);
+  const prewarmedRef = useRef<Set<string>>(new Set());
 
   // Audio element event listeners
   useEffect(() => {
@@ -67,8 +72,12 @@ export function AudioEngine() {
     const onPlay = () => {
       setPlaying(true);
       setPlayError(null);
+      const t = usePlayerStore.getState().currentTrack;
+      if (t) useHistoryStore.getState().add(t);
     };
     const onPause = () => setPlaying(false);
+    const onBufferStart = () => setBuffering(true);
+    const onBufferEnd = () => setBuffering(false);
     const onErr = () => {
       const track = usePlayerStore.getState().currentTrack;
       // Stream URLs expire; retry once with a fresh resolve before giving up.
@@ -81,6 +90,7 @@ export function AudioEngine() {
         }
         return;
       }
+      setBuffering(false);
       const t = usePlayerStore.getState().currentTrack;
       if (!t) return;
       void explainFailure(t.videoId).then((msg) => {
@@ -94,8 +104,16 @@ export function AudioEngine() {
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
     audio.addEventListener("error", onErr);
+    audio.addEventListener("waiting", onBufferStart);
+    audio.addEventListener("loadstart", onBufferStart);
+    audio.addEventListener("playing", onBufferEnd);
+    audio.addEventListener("canplay", onBufferEnd);
 
     return () => {
+      audio.removeEventListener("waiting", onBufferStart);
+      audio.removeEventListener("loadstart", onBufferStart);
+      audio.removeEventListener("playing", onBufferEnd);
+      audio.removeEventListener("canplay", onBufferEnd);
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("durationchange", onTime);
       audio.removeEventListener("ended", onEnded);
@@ -103,7 +121,7 @@ export function AudioEngine() {
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("error", onErr);
     };
-  }, [next, setPlaying, setProgress, setPlayError]);
+  }, [next, setPlaying, setProgress, setPlayError, setBuffering]);
 
   // Handle Track Changes
   useEffect(() => {
@@ -111,6 +129,7 @@ export function AudioEngine() {
     if (!audio || !currentTrack) return;
 
     setPlayError(null);
+    setBuffering(true);
     retriedRef.current = null;
     audio.src = streamUrl(currentTrack.videoId);
     audio.load();
@@ -139,6 +158,35 @@ export function AudioEngine() {
         .catch(() => undefined);
     }
   }, [currentTrack?.videoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Prewarm the next tracks: the backend resolves their stream URLs (slow yt-dlp step)
+  // while the current song plays, so skipping / auto-advance starts almost instantly.
+  useEffect(() => {
+    if (!currentTrack || isBuffering || !queue.length) return;
+    const ids: string[] = [];
+    if (shuffle) {
+      // Unpredictable order: warm a couple of random upcoming candidates.
+      const others = queue.filter((t) => t.videoId !== currentTrack.videoId);
+      for (let i = 0; i < Math.min(2, others.length); i++) {
+        ids.push(others[Math.floor(Math.random() * others.length)].videoId);
+      }
+    } else {
+      for (let i = 1; i <= 2; i++) {
+        const t = queue[queueIndex + i];
+        if (t) ids.push(t.videoId);
+      }
+    }
+    const fresh = ids.filter((id) => !prewarmedRef.current.has(id));
+    if (!fresh.length) return;
+    // Let the current track start first so we don't compete with it for the backend.
+    const timer = window.setTimeout(() => {
+      fresh.forEach((id, i) => {
+        prewarmedRef.current.add(id);
+        window.setTimeout(() => prewarmStream(id), i * 1500);
+      });
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [currentTrack, isBuffering, queue, queueIndex, shuffle]);
 
   // Handle Play/Pause
   useEffect(() => {
@@ -202,32 +250,6 @@ export function AudioEngine() {
       if (typeof d.seekTime === "number") usePlayerStore.getState().seek(d.seekTime);
     });
   }, [currentTrack, next, previous]);
-
-  // Equalizer visualizer wave animation loop (restarts whenever playback toggles)
-  useEffect(() => {
-    if (!isPlaying) {
-      setAnalyserBins([0.15, 0.2, 0.25, 0.2, 0.15]);
-      return;
-    }
-    let step = 0;
-    const loop = () => {
-      step += 0.08;
-
-      const bins = [
-        0.3 + 0.4 * Math.abs(Math.sin(step)),
-        0.4 + 0.5 * Math.abs(Math.sin(step * 1.3 + 1)),
-        0.5 + 0.5 * Math.abs(Math.cos(step * 0.9 + 2)),
-        0.35 + 0.45 * Math.abs(Math.sin(step * 1.5 + 3)),
-        0.25 + 0.35 * Math.abs(Math.cos(step * 1.1 + 4)),
-      ];
-
-      setAnalyserBins(bins);
-      rafRef.current = requestAnimationFrame(loop);
-    };
-
-    rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [isPlaying, setAnalyserBins]);
 
   // Keyboard controls
   useEffect(() => {

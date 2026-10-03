@@ -46,7 +46,7 @@ function SortableItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 rounded-xl px-2 py-2 ${active ? "bg-white/10" : "hover:bg-white/5"}`}
+      className={`flex items-center gap-2 rounded-xl px-2 py-2 ${active ? "bg-[#2a2a2a]" : "hover:bg-[#1f1f1f]"}`}
     >
       <button className="cursor-grab text-white/30" {...attributes} {...listeners} aria-label="Reorder">
         <GripVertical className="h-4 w-4" />
@@ -63,8 +63,8 @@ function SortableItem({
           <div className="h-9 w-9 rounded bg-white/10" />
         )}
         <div className="min-w-0">
-          <div className="truncate text-sm">{title}</div>
-          <div className="truncate text-xs text-white/45">{artist}</div>
+          <div className={`truncate text-sm ${active ? "text-brand" : ""}`}>{title}</div>
+          <div className="truncate text-xs text-[#a7a7a7]">{artist}</div>
         </div>
       </button>
       <button type="button" onClick={() => removeFromQueue(index)} className="p-1 text-white/35 hover:text-white">
@@ -92,11 +92,11 @@ export function QueuePanel() {
   };
 
   return (
-    <aside className="glass-strong flex h-full w-full flex-col rounded-2xl p-3 md:w-[300px]">
+    <aside className="flex h-full w-full flex-col bg-panel p-3 lg:w-[320px] lg:rounded-lg">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Queue</h3>
-        <button type="button" className="text-white/50 md:hidden" onClick={() => setQueueOpen(false)}>
-          <X className="h-4 w-4" />
+        <h3 className="text-base font-bold">Queue</h3>
+        <button type="button" aria-label="Close queue" className="rounded-full p-2 text-[#b3b3b3] hover:text-white" onClick={() => setQueueOpen(false)}>
+          <X className="h-5 w-5" />
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">

@@ -25,7 +25,7 @@ export default function ArtistDetailPage() {
       .catch((e: Error) => setError(e.message));
   }, [id]);
 
-  if (error) return <div className="glass rounded-2xl p-6 text-amber-200">{error}</div>;
+  if (error) return <div className="glass rounded-lg p-6 text-amber-200">{error}</div>;
   if (!data) return <div className="h-64 animate-pulse rounded-3xl bg-white/5" />;
 
   const cover = artUrl(data.thumbnails, 800);
@@ -37,7 +37,7 @@ export default function ArtistDetailPage() {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={cover} alt="" className="h-64 w-full object-cover opacity-50" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#121212] to-transparent" />
         <div className="absolute bottom-6 left-6">
           <div className="text-xs uppercase tracking-widest text-white/60">Artist</div>
           <h1 className="text-4xl font-semibold">{data.name}</h1>

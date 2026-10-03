@@ -1,21 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Menu, Search, User } from "lucide-react";
-import { useUiStore } from "@/store/useUiStore";
+import { Home, Music2, Search, X } from "lucide-react";
 
+/** Desktop top bar: logo, home, search, profile. (Mobile uses the bottom nav instead.) */
 export function TopBar() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const setSidebarOpen = useUiStore((s) => s.setSidebarOpen);
   const [q, setQ] = useState(params.get("q") || "");
   const inputRef = useRef<HTMLInputElement>(null);
   const timer = useRef<number | undefined>(undefined);
 
-  // Mirror the URL into the box, but never while the user is typing in it
-  // (a late URL update would otherwise overwrite freshly typed characters).
+  // Mirror the URL into the box, but never while the user is typing in it.
   useEffect(() => {
     if (document.activeElement === inputRef.current) return;
     setQ(pathname === "/search" ? params.get("q") || "" : "");
@@ -44,45 +43,60 @@ export function TopBar() {
   };
 
   return (
-    <header className="glass flex items-center gap-3 rounded-2xl px-3 py-2">
-      <button
-        type="button"
-        className="rounded-full p-2 hover:bg-white/10 md:hidden"
-        onClick={() => setSidebarOpen(true)}
-        aria-label="Open menu"
-      >
-        <Menu className="h-4 w-4" />
-      </button>
-      <div className="hidden items-center gap-1 md:flex">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="rounded-full bg-black/30 p-2 hover:bg-white/10"
-          aria-label="Back"
+    <header className="hidden h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 md:grid">
+      <Link href="/" className="flex items-center gap-2 justify-self-start" aria-label="Geekify home">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-black">
+          <Music2 className="h-4 w-4" />
+        </span>
+        <span className="hidden text-lg font-bold tracking-tight lg:inline">Geekify</span>
+      </Link>
+
+      <div className="flex items-center gap-2">
+        <Link
+          href="/"
+          aria-label="Home"
+          className={`flex h-12 w-12 items-center justify-center rounded-full bg-elevated transition hover:scale-105 ${
+            pathname === "/" ? "text-white" : "text-[#b3b3b3] hover:text-white"
+          }`}
         >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => router.forward()}
-          className="rounded-full bg-black/30 p-2 hover:bg-white/10"
-          aria-label="Forward"
+          <Home className="h-6 w-6" />
+        </Link>
+        <form
+          onSubmit={onSubmit}
+          className="group relative flex h-12 w-[min(480px,38vw)] items-center rounded-full bg-elevated ring-1 ring-transparent transition hover:bg-[#2a2a2a] focus-within:ring-white"
         >
-          <ChevronRight className="h-4 w-4" />
-        </button>
+          <Search className="pointer-events-none ml-4 h-5 w-5 shrink-0 text-[#b3b3b3] group-focus-within:text-white" />
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={(e) => onInputChange(e.target.value)}
+            placeholder="What do you want to play?"
+            className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-[#a7a7a7]"
+          />
+          {q && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => {
+                setQ("");
+                inputRef.current?.focus();
+                if (pathname === "/search") router.replace("/search");
+              }}
+              className="mr-3 rounded-full p-1 text-[#b3b3b3] hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </form>
       </div>
-      <form onSubmit={onSubmit} className="relative mx-auto w-full max-w-xl">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
-        <input
-          ref={inputRef}
-          value={q}
-          onChange={(e) => onInputChange(e.target.value)}
-          placeholder="Search songs, artists, albums..."
-          className="w-full rounded-full bg-white/[0.08] py-2.5 pl-10 pr-4 text-sm outline-none ring-1 ring-white/10 placeholder:text-white/35 focus:ring-fuchsia-400/40"
-        />
-      </form>
-      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-cyan-400 text-xs font-semibold text-black">
-        <User className="h-4 w-4" />
+
+      <div className="justify-self-end">
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-sm font-bold text-black"
+          aria-label="Profile"
+        >
+          G
+        </div>
       </div>
     </header>
   );

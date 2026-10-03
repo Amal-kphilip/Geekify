@@ -36,10 +36,13 @@ Open [http://localhost:3000](http://localhost:3000).
 | GET | `/api/artist/{channelId}` | |
 | GET | `/api/album/{playlistId}` | |
 | GET | `/api/playlist/{playlistId}` | |
-| GET | `/api/home` | YT Music home shelves |
+| GET | `/api/home?seed=` | YT Music home shelves, shuffled on every call, plus random genre shelves. Sent with `Cache-Control: no-store`. |
+| GET | `/api/prewarm/{videoId}` | resolve + cache a stream URL in the background so the next track starts instantly |
 | GET | `/api/health` | |
 
-Stream URLs are cached ~5 hours. Search/browse cached 15 minutes.
+Stream URLs are cached ~5 hours. Search/browse data is cached 15 minutes, but the home endpoint reshuffles that pool on each request.
+
+On page load the app immediately pings `/api/health` (wakes a sleeping free-tier backend), starts fetching the home feed and pre-resolves the last played track - it does not wait for you to press play. Home also adds a "Because you listened to..." shelf and a quick-access grid built from your listening history (stored locally in the browser).
 
 ## Keyboard
 

@@ -24,9 +24,9 @@ export default function LocalPlaylistPage() {
       <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt="" className="h-48 w-48 rounded-2xl object-cover" />
+          <img src={cover} alt="" className="h-48 w-48 rounded-lg object-cover" />
         ) : (
-          <div className="h-48 w-48 rounded-2xl bg-white/10" />
+          <div className="h-48 w-48 rounded-lg bg-white/10" />
         )}
         <div>
           <div className="text-xs uppercase tracking-widest text-white/45">Playlist</div>

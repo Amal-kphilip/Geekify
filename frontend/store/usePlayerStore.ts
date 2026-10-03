@@ -18,6 +18,7 @@ type PlayerState = {
   shuffle: boolean;
   repeatMode: RepeatMode;
   playError: string | null;
+  isBuffering: boolean;
   analyserBins: number[];
   play: (track: Track, queue?: Track[]) => void;
   togglePlay: () => void;
@@ -31,6 +32,7 @@ type PlayerState = {
   setProgress: (t: number, d: number) => void;
   setPlaying: (p: boolean) => void;
   setPlayError: (m: string | null) => void;
+  setBuffering: (b: boolean) => void;
   setAnalyserBins: (bins: number[]) => void;
   reorderQueue: (from: number, to: number) => void;
   addToQueue: (track: Track) => void;
@@ -52,6 +54,7 @@ export const usePlayerStore = create<PlayerState>()(
       shuffle: false,
       repeatMode: "off",
       playError: null,
+      isBuffering: false,
       analyserBins: [0.2, 0.35, 0.5, 0.35, 0.2],
       play: (track, queue) => {
         const q = queue && queue.length ? queue : [track];
@@ -64,7 +67,9 @@ export const usePlayerStore = create<PlayerState>()(
           queue: q,
           queueIndex: idx === -1 ? 0 : idx,
           isPlaying: true,
+          isBuffering: get().currentTrack?.videoId !== track.videoId,
           progress: 0,
+          duration: 0,
           playError: null,
         });
       },
@@ -102,7 +107,9 @@ export const usePlayerStore = create<PlayerState>()(
           currentTrack: queue[nextIndex],
           queueIndex: nextIndex,
           isPlaying: true,
+          isBuffering: get().currentTrack?.videoId !== queue[nextIndex].videoId,
           progress: 0,
+          duration: 0,
           playError: null,
         });
       },
@@ -118,7 +125,9 @@ export const usePlayerStore = create<PlayerState>()(
           currentTrack: queue[prev],
           queueIndex: prev,
           isPlaying: true,
+          isBuffering: get().currentTrack?.videoId !== queue[prev].videoId,
           progress: 0,
+          duration: 0,
           playError: null,
         });
       },
@@ -135,6 +144,7 @@ export const usePlayerStore = create<PlayerState>()(
       setPlaying: (p) => set({ isPlaying: p }),
       // Only a real error should stop playback; clearing an error (null) must not touch isPlaying.
       setPlayError: (m) => set(m ? { playError: m, isPlaying: false } : { playError: null }),
+      setBuffering: (b) => set({ isBuffering: b }),
       setAnalyserBins: (bins) => set({ analyserBins: bins }),
       reorderQueue: (from, to) => {
         const queue = [...get().queue];

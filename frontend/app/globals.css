@@ -3,10 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --background: #0a0a0f;
-  --foreground: #f4f4f8;
-  --accent-from: #a855f7;
-  --accent-to: #22d3ee;
+  --background: #000000;
+  --foreground: #ffffff;
+  --brand: #1ed760;
+  --panel: #121212;
+  --elevated: #1f1f1f;
 }
 
 html,
@@ -18,60 +19,120 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* Flat surfaces. (Class names kept so older pages pick up the new look.) */
 @layer utilities {
   .glass {
-    background: rgba(255, 255, 255, 0.055);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #181818;
+    border: 0;
   }
   .glass-strong {
-    background: rgba(12, 12, 20, 0.72);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #121212;
+    border: 0;
   }
   .accent-text {
-    background: linear-gradient(90deg, #c084fc, #22d3ee);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-  .progress-fill {
-    background: linear-gradient(90deg, #a855f7, #22d3ee, #a855f7);
-    background-size: 200% 100%;
-    animation: shimmer 2.4s linear infinite;
+    color: #1ed760;
   }
   .scrollbar-thin::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 12px;
+    height: 12px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.25);
     border-radius: 99px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }
 
+/* ---- Range inputs (seek bar / volume) ---- */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
-  height: 6px;
+  height: 4px;
+  cursor: pointer;
+  --seek-fill: #fff;
+}
+input[type="range"]:hover:not(:disabled) {
+  --seek-fill: #1ed760;
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   height: 12px;
   width: 12px;
   border-radius: 999px;
-  background: white;
-  cursor: pointer;
+  background: #fff;
   margin-top: -4px;
-  box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.25);
+  opacity: 0;
+}
+input[type="range"]:hover::-webkit-slider-thumb,
+input[type="range"]:focus-visible::-webkit-slider-thumb,
+input[type="range"].seekbar-lg::-webkit-slider-thumb {
+  opacity: 1;
 }
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.12);
+  background: transparent;
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 99px;
+  background: transparent;
+}
+input[type="range"]::-moz-range-thumb {
+  height: 12px;
+  width: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  opacity: 0;
+}
+input[type="range"]:hover::-moz-range-thumb,
+input[type="range"].seekbar-lg::-moz-range-thumb {
+  opacity: 1;
+}
+input[type="range"]:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Bigger, finger-friendly thumb for the seek bars on touch devices */
+@media (pointer: coarse) {
+  input[type="range"].seekbar {
+    padding: 10px 0;
+    background-clip: content-box;
+  }
+  input[type="range"].seekbar::-webkit-slider-thumb {
+    height: 16px;
+    width: 16px;
+    margin-top: -6px;
+    opacity: 1;
+  }
+  input[type="range"].seekbar::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    opacity: 1;
+  }
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  animation: spin-slow 0.8s linear infinite;
 }

@@ -1,30 +1,39 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, Minimize2, SkipBack, SkipForward } from "lucide-react";
+import { ChevronDown, Heart, ListMusic, Repeat, Repeat1, Shuffle, SkipBack, SkipForward } from "lucide-react";
 import { artUrl, proxiedArt } from "@/lib/types";
+import { rgbCss, sampleDominantColor } from "@/lib/color";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useLibraryStore } from "@/store/useLibraryStore";
 import { useUiStore } from "@/store/useUiStore";
 import { PlayPauseMorph } from "./PlayPauseMorph";
+import { SeekBar } from "./SeekBar";
 
+/** Full-screen player (mobile + desktop): cover, title, timeline, controls. */
 export function ExpandedPlayer() {
   const track = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
-  const bins = usePlayerStore((s) => s.analyserBins);
+  const isBuffering = usePlayerStore((s) => s.isBuffering);
+  const playError = usePlayerStore((s) => s.playError);
+  const shuffle = usePlayerStore((s) => s.shuffle);
+  const repeatMode = usePlayerStore((s) => s.repeatMode);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const next = usePlayerStore((s) => s.next);
   const previous = usePlayerStore((s) => s.previous);
+  const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
+  const cycleRepeat = usePlayerStore((s) => s.cycleRepeat);
   const setExpanded = useUiStore((s) => s.setExpanded);
-  const isLiked = useLibraryStore((s) => s.isLiked);
+  const setQueueOpen = useUiStore((s) => s.setQueueOpen);
+  const liked = useLibraryStore((s) => (track ? s.liked.some((t) => t.videoId === track.videoId) : false));
   const toggleLike = useLibraryStore((s) => s.toggleLike);
+  const [tint, setTint] = useState("rgb(60, 60, 60)");
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setExpanded(false);
-      }
+      if (e.key === "Escape") setExpanded(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -32,120 +41,113 @@ export function ExpandedPlayer() {
 
   const src = proxiedArt(artUrl(track?.thumbnails, 800)) || artUrl(track?.thumbnails, 400);
 
+  // Background = the cover's main colour fading into the app's dark panel colour.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (!img) return;
+    const apply = () => setTint(rgbCss(sampleDominantColor(img), 1));
+    if (img.complete && img.naturalWidth) apply();
+    else img.addEventListener("load", apply, { once: true });
+  }, [src]);
+
+  const loading = isBuffering && isPlaying;
+  const iconBtn = (active: boolean) =>
+    `relative rounded-full p-2 transition ${active ? "text-brand" : "text-white/70 hover:text-white"}`;
+
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.98 }}
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 24 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-[100] flex flex-col justify-between overflow-hidden bg-[#0a0a0f] p-6 md:p-12"
+      className="fixed inset-0 z-[100] flex flex-col overflow-y-auto overflow-x-hidden px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]"
+      style={{ background: `linear-gradient(180deg, ${tint} 0%, rgba(0,0,0,0.55) 45%, #121212 100%), #121212` }}
     >
-      {src && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt=""
-          className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-35 blur-3xl"
-        />
-      )}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/90" />
+      <div className="mx-auto flex w-full max-w-xl flex-1 flex-col">
+        <div className="flex items-center justify-between py-2">
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="rounded-full p-2 text-white transition hover:bg-white/10"
+            aria-label="Close full player"
+            title="Close (Esc)"
+          >
+            <ChevronDown className="h-7 w-7" />
+          </button>
+          <div className="text-xs font-semibold uppercase tracking-wider text-white/80">Now playing</div>
+          <button
+            type="button"
+            onClick={() => setQueueOpen(true)}
+            className="rounded-full p-2 text-white transition hover:bg-white/10"
+            aria-label="Open queue"
+            title="Queue"
+          >
+            <ListMusic className="h-6 w-6" />
+          </button>
+        </div>
 
-      {/* Top bar with close button */}
-      <div className="relative z-50 flex items-center justify-between">
-        <div className="text-xs uppercase tracking-widest text-white/50">Now Playing</div>
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          className="cursor-pointer rounded-full glass p-3 text-white/80 transition hover:bg-white/20 hover:text-white"
-          aria-label="Exit full screen"
-          title="Exit full screen (Esc)"
-        >
-          <Minimize2 className="h-6 w-6" />
-        </button>
-      </div>
-
-      {/* Main Center Stage */}
-      <div className="relative z-10 flex flex-col items-center justify-center gap-6">
-        <div className="relative overflow-hidden rounded-3xl border border-white/15 shadow-2xl">
+        <div className="flex flex-1 items-center justify-center py-4">
           {src ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={src} alt="" className="h-64 w-64 object-cover md:h-80 md:w-80" />
+            <img
+              ref={imgRef}
+              src={src}
+              alt=""
+              className="aspect-square rounded-lg object-cover shadow-2xl shadow-black/50"
+              style={{ width: "min(100%, 44dvh)" }}
+            />
           ) : (
-            <div className="h-64 w-64 bg-white/10 md:h-80 md:w-80" />
+            <div className="aspect-square rounded-lg bg-white/10" style={{ width: "min(100%, 44dvh)" }} />
           )}
         </div>
 
-        {/* Audio-reactive visualizer waveform */}
-        <div className="flex h-16 items-end gap-1.5">
-          {Array.from({ length: 32 }).map((_, i) => {
-            const v = bins[i % bins.length] || 0.15;
-            const h = 8 + v * 56 * (0.5 + ((i * 13) % 10) / 20);
-            return (
-              <span
-                key={i}
-                className="w-1.5 rounded-full bg-gradient-to-t from-fuchsia-500 to-cyan-300 transition-[height] duration-75"
-                style={{ height: isPlaying ? h : 8 }}
-              />
-            );
-          })}
-        </div>
-
-        {/* Title & Artist & Like Button */}
-        <div className="flex flex-col items-center text-center">
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
-              {track?.title || "Nothing playing"}
-            </h2>
-            {track && (
-              <button
-                type="button"
-                onClick={() => toggleLike(track)}
-                className="rounded-full p-2 text-white/70 transition hover:scale-110 hover:text-white"
-                title={isLiked(track.videoId) ? "Unlike" : "Like"}
-              >
-                <Heart
-                  className={`h-6 w-6 ${
-                    isLiked(track.videoId) ? "fill-fuchsia-400 text-fuchsia-400" : ""
-                  }`}
-                />
-              </button>
-            )}
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="line-clamp-2 text-2xl font-bold leading-tight">{track?.title || "Nothing playing"}</h2>
+            <p className="mt-1 truncate text-white/70">{track?.artist}</p>
           </div>
-          <p className="mt-1 text-base text-white/60">{track?.artist}</p>
+          {track && (
+            <button
+              type="button"
+              onClick={() => toggleLike(track)}
+              className="rounded-full p-2"
+              aria-label={liked ? "Unlike" : "Like"}
+              aria-pressed={liked}
+            >
+              <Heart className={`h-7 w-7 ${liked ? "fill-brand text-brand" : "text-white/80 hover:text-white"}`} />
+            </button>
+          )}
         </div>
 
-        {/* Playback Controls */}
-        <div className="mt-2 flex items-center gap-8">
-          <button
-            type="button"
-            onClick={previous}
-            className="rounded-full p-3 text-white/80 transition hover:scale-110 hover:text-white"
-            aria-label="Previous"
-          >
-            <SkipBack className="h-8 w-8 fill-current" />
+        {playError && <div className="mt-3 text-center text-xs text-amber-300">{playError}</div>}
+
+        <SeekBar large className="mt-4" />
+
+        <div className="mt-3 flex items-center justify-between">
+          <button type="button" onClick={toggleShuffle} className={iconBtn(shuffle)} aria-label="Shuffle" aria-pressed={shuffle}>
+            <Shuffle className="h-6 w-6" />
+            {shuffle && <span className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-brand" />}
+          </button>
+          <button type="button" onClick={previous} className="rounded-full p-2 text-white" aria-label="Previous">
+            <SkipBack className="h-9 w-9 fill-current" />
           </button>
           <button
             type="button"
             onClick={togglePlay}
             disabled={!track}
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-400 to-cyan-300 text-black shadow-glow transition hover:scale-105 active:scale-95 disabled:opacity-40"
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-white transition hover:scale-105 active:scale-95 disabled:opacity-40"
             aria-label={isPlaying ? "Pause" : "Play"}
           >
-            <PlayPauseMorph playing={isPlaying} />
+            <PlayPauseMorph playing={isPlaying} loading={loading} />
           </button>
-          <button
-            type="button"
-            onClick={next}
-            className="rounded-full p-3 text-white/80 transition hover:scale-110 hover:text-white"
-            aria-label="Next"
-          >
-            <SkipForward className="h-8 w-8 fill-current" />
+          <button type="button" onClick={next} className="rounded-full p-2 text-white" aria-label="Next">
+            <SkipForward className="h-9 w-9 fill-current" />
+          </button>
+          <button type="button" onClick={cycleRepeat} className={iconBtn(repeatMode !== "off")} aria-label="Repeat" aria-pressed={repeatMode !== "off"}>
+            {repeatMode === "one" ? <Repeat1 className="h-6 w-6" /> : <Repeat className="h-6 w-6" />}
+            {repeatMode !== "off" && <span className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-brand" />}
           </button>
         </div>
-      </div>
-
-      <div className="relative z-10 text-center text-xs text-white/40">
-        Press <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono">Esc</kbd> or click the minimize icon to exit
       </div>
     </motion.div>
   );

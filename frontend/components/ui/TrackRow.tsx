@@ -18,7 +18,6 @@ export function TrackRow({
 }) {
   const play = usePlayerStore((s) => s.play);
   const current = usePlayerStore((s) => s.currentTrack);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
   const addToQueue = usePlayerStore((s) => s.addToQueue);
   const toggleLike = useLibraryStore((s) => s.toggleLike);
   const playlists = useLibraryStore((s) => s.playlists);
@@ -31,8 +30,8 @@ export function TrackRow({
 
   return (
     <div
-      className={`group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-white/5 ${
-        active ? "bg-white/[0.06]" : ""
+      className={`group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md px-2 py-2 transition hover:bg-white/10 ${
+        active ? "bg-white/10" : ""
       }`}
     >
       <button
@@ -56,11 +55,10 @@ export function TrackRow({
         )}
       </button>
       <button type="button" className="min-w-0 text-left" onClick={() => play(track, queue)}>
-        <div className={`truncate text-sm ${active ? "accent-text" : ""}`}>
+        <div className={`truncate text-sm ${active ? "text-brand" : ""}`}>
           {track.title}
-          {active && isPlaying ? " ·" : ""}
         </div>
-        <div className="truncate text-xs text-white/50">{track.artist}</div>
+        <div className="truncate text-xs text-[#a7a7a7]">{track.artist}</div>
       </button>
       <div className="flex items-center gap-1 text-white/60">
         <span className="mr-2 hidden text-xs tabular-nums sm:inline">{track.duration}</span>
@@ -70,7 +68,7 @@ export function TrackRow({
           onClick={() => toggleLike(track)}
           className="rounded-full p-1.5 hover:bg-white/10"
         >
-          <Heart className={`h-4 w-4 ${liked ? "fill-fuchsia-400 text-fuchsia-400" : ""}`} />
+          <Heart className={`h-4 w-4 ${liked ? "fill-brand text-brand" : ""}`} />
         </button>
         <button
           type="button"
@@ -97,12 +95,12 @@ export function TrackRow({
                 className="fixed inset-0 z-30 cursor-default"
                 onClick={() => setMenuOpen(false)}
               />
-              <div className="glass-strong absolute right-0 z-40 mt-1 max-h-60 w-52 overflow-y-auto rounded-xl p-1 text-sm text-white shadow-xl scrollbar-thin">
+              <div className="absolute right-0 z-40 mt-1 max-h-60 w-52 overflow-y-auto rounded-md bg-[#282828] p-1 text-sm text-white shadow-xl scrollbar-thin">
                 {playlists.map((pl) => (
                   <button
                     key={pl.id}
                     type="button"
-                    className="block w-full truncate rounded-lg px-3 py-2 text-left hover:bg-white/10"
+                    className="block w-full truncate rounded px-3 py-2 text-left hover:bg-white/10"
                     onClick={() => {
                       addToPlaylist(pl.id, track);
                       setMenuOpen(false);
@@ -113,7 +111,7 @@ export function TrackRow({
                 ))}
                 <button
                   type="button"
-                  className="block w-full rounded-lg px-3 py-2 text-left text-cyan-300 hover:bg-white/10"
+                  className="block w-full rounded px-3 py-2 text-left text-brand hover:bg-white/10"
                   onClick={() => {
                     const name = window.prompt("Playlist name", "My playlist");
                     if (name) addToPlaylist(createPlaylist(name).id, track);

@@ -2,9 +2,27 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 
-export function PlayPauseMorph({ playing }: { playing: boolean }) {
+export function PlayPauseMorph({
+  playing,
+  loading = false,
+  tone = "dark",
+}: {
+  playing: boolean;
+  loading?: boolean;
+  /** "dark" icon for use on a white button, "light" icon on a dark background. */
+  tone?: "dark" | "light";
+}) {
+  const ink = tone === "dark" ? "black" : "white";
+  if (loading) {
+    return (
+      <svg viewBox="0 0 24 24" className="spinner h-6 w-6" fill="none" stroke={ink} strokeWidth="3" strokeLinecap="round">
+        <circle cx="12" cy="12" r="8" strokeOpacity="0.25" />
+        <path d="M12 4a8 8 0 0 1 8 8" />
+      </svg>
+    );
+  }
   return (
-    <svg viewBox="0 0 24 24" className="h-6 w-6 fill-black">
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill={ink}>
       <AnimatePresence mode="wait" initial={false}>
         {playing ? (
           <motion.g
