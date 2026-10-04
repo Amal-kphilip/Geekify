@@ -103,17 +103,14 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
 NEXT_PUBLIC_FIREBASE_APP_ID=...
 ```
 
-## Keyboard Controls
-
-| Key     | Action       |
-| ------- | ------------ |
-| `Space` | Play / pause |
-| `← / →` | Seek         |
-| `↑ / ↓` | Volume       |
 
 ## Limitations
 
 Geekify depends on YouTube services for music metadata and playback. Changes to YouTube or restrictions on cloud IP addresses may occasionally affect playback.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Disclaimer
 
