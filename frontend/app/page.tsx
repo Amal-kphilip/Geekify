@@ -6,8 +6,8 @@ import { Heart, Play, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import { AccountMenu } from "@/components/auth/AccountMenu";
 import { ShelfRow, ShelfSkeleton } from "@/components/ui/ShelfRow";
 import { TrackRow } from "@/components/ui/TrackRow";
-import type { Card, Mix, Shelf } from "@/lib/types";
-import { artUrl, isTrack } from "@/lib/types";
+import type { Card, Mix, Shelf, Track } from "@/lib/types";
+import { artUrl, isTrack, toTrack } from "@/lib/types";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useHistoryStore } from "@/store/useHistoryStore";
 import { useHomeStore } from "@/store/useHomeStore";
@@ -29,9 +29,20 @@ const MIX_COLORS = ["bg-lilac", "bg-lime", "bg-peach", "bg-sky", "bg-rose"];
 
 function applyFilter(shelf: Shelf, filter: FilterId): Shelf | null {
   if (filter === "all") return shelf;
-  const items = shelf.items.filter((i) =>
-    filter === "song" ? isTrack(i) : !isTrack(i) && (i as Card).type === filter
-  );
+  if (filter === "song") {
+    // Songs can come as full Tracks or as "song" cards; keep both, de-duplicated.
+    const seen = new Set<string>();
+    const songs: Track[] = [];
+    for (const item of shelf.items) {
+      const t = toTrack(item);
+      if (t && !seen.has(t.videoId)) {
+        seen.add(t.videoId);
+        songs.push(t);
+      }
+    }
+    return songs.length ? { ...shelf, items: songs } : null;
+  }
+  const items = shelf.items.filter((i) => !isTrack(i) && (i as Card).type === filter);
   return items.length ? { ...shelf, items } : null;
 }
 
@@ -134,6 +145,19 @@ export default function HomePage() {
     ? { title: "Jump back in", items: recent.slice(0, 14) }
     : null;
 
+  // The "Songs" view isn't only the YouTube feed: your recent plays and personal mixes are songs too,
+  // so it still has content when the feed itself happens to be light on single tracks.
+  const personalSongShelves = useMemo<Shelf[]>(() => {
+    if (filter !== "song") return [];
+    const out: Shelf[] = [];
+    if (jumpBack) out.push(jumpBack);
+    for (const m of mixes) if (m.tracks.length) out.push({ title: m.title, items: m.tracks.slice(0, 24) });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, mixes, recent]);
+
+  const nothingToShow = !!data && filter !== "all" && shelves.length === 0 && personalSongShelves.length === 0;
+
   const chip = (active: boolean) =>
     `shrink-0 rounded-full px-5 py-2.5 text-[15px] font-medium transition-colors ${
       active ? "bg-lime text-ink" : "bg-chip text-white/85 hover:bg-white/15"
@@ -202,7 +226,7 @@ export default function HomePage() {
               <section className="mb-9">
                 <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Your mixes</h2>
                 {mixes.length > 0 ? (
-                  <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
+                  <div className="no-scrollbar h-scroll flex gap-3.5 pb-1">
                     {mixes.map((m, i) => (
                       <MixCard key={m.id} mix={m} index={i} open={openMix === m.id} onOpen={() => setOpenMix(openMix === m.id ? null : m.id)} />
                     ))}
@@ -292,11 +316,27 @@ export default function HomePage() {
           </>
         )}
 
+        {personalSongShelves.map((s, i) => (
+          <ShelfRow key={`mine-${s.title}-${i}`} shelf={s} />
+        ))}
+
         {shelves.map((s, i) => (
           <ShelfRow key={`${s.title}-${i}`} shelf={s} />
         ))}
 
-        {data && !shelves.length && filter !== "all" && <p className="text-muted">Nothing to show for this view. Try another one.</p>}
+        {nothingToShow && (
+          <div className="rounded-3xl bg-elevated p-5 text-sm text-muted">
+            <p>Nothing in the feed matches this view right now.</p>
+            <div className="mt-3 flex gap-2.5">
+              <button type="button" onClick={() => setFilter("all")} className="h-10 rounded-full bg-lime px-5 text-sm font-semibold text-ink">
+                Show everything
+              </button>
+              <button type="button" onClick={() => void load(true)} className="h-10 rounded-full bg-chip px-5 text-sm font-semibold text-white">
+                Refresh
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

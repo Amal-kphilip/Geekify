@@ -61,7 +61,7 @@ export default function ArtistDetailPage() {
       {data.albums.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Albums</h2>
-          <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
+          <div className="no-scrollbar h-scroll flex gap-3.5 pb-1">
             {data.albums.map((c) => (
               <GlassCard
                 key={c.id}
@@ -75,7 +75,7 @@ export default function ArtistDetailPage() {
       {data.singles.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Singles</h2>
-          <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
+          <div className="no-scrollbar h-scroll flex gap-3.5 pb-1">
             {data.singles.map((c) => (
               <GlassCard
                 key={c.id}

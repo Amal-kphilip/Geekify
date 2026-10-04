@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import logging
 import random
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from app import cache
+from app import cache, memguard
 from app.models import ArtistPage, CollectionPage, HomeResponse, Shelf
 from app.models import Track
 from app.services.innertube_client import (
@@ -29,12 +30,15 @@ router = APIRouter()
 _HOME_ENDPOINTS = ["FEmusic_home", "FEmusic_explore", "FEmusic_charts", "FEmusic_new_releases"]
 
 
-def _load_home_endpoint(endpoint: str):
+def _load_home_endpoint(endpoint: str) -> Optional[list[Shelf]]:
+    """Fetch + parse one home feed. Returns None when it failed (so callers know the pool is partial)."""
     try:
-        return parse_home(music_browse(endpoint)).shelves
-    except Exception as exc:  # noqa: BLE001
+        # The raw JSON is several MB of nested dicts: hold a memory slot while it exists.
+        with memguard.light():
+            return parse_home(music_browse(endpoint)).shelves
+    except Exception as exc:  # noqa: BLE001 - includes memguard.Busy
         logger.warning("home endpoint %s failed: %s", endpoint, exc)
-        return []
+        return None
 
 
 # (shelf title, search query, result kind). A few are picked at random on every
@@ -65,7 +69,8 @@ def _genre_shelf(spec: tuple[str, str, str]) -> Optional[Shelf]:
         key = f"{query}|{kind}"  # same key format as the /search route, so the cache is shared
         parsed = cache.get_search(key)
         if not parsed:
-            parsed = parse_search(music_search(query, kind), query, kind)
+            with memguard.light():
+                parsed = parse_search(music_search(query, kind), query, kind)
             if parsed.albums or parsed.playlists:
                 cache.set_search(key, parsed)
         cards = parsed.playlists if kind == "playlist" else parsed.albums
@@ -75,24 +80,35 @@ def _genre_shelf(spec: tuple[str, str, str]) -> Optional[Shelf]:
         return None
 
 
+_pool_lock = threading.Lock()
+
+
 def _home_pool() -> list[Shelf]:
     """Generic YouTube Music shelves; cached for a while because they are slow to fetch."""
     hit = cache.get_browse("home_pool")
     if hit:
         return hit
-    with ThreadPoolExecutor(max_workers=len(_HOME_ENDPOINTS)) as pool:
-        results = list(pool.map(_load_home_endpoint, _HOME_ENDPOINTS))
-    combined: list[Shelf] = []
-    seen_titles: set[str] = set()
-    for shelves in results:
-        for s in shelves:
-            title_clean = s.title.strip().lower()
-            if title_clean not in seen_titles and len(s.items) > 0:
-                seen_titles.add(title_clean)
-                combined.append(s)
-    if combined:
-        cache.set_browse("home_pool", combined)
-    return combined
+    # Single flight: concurrent /home calls (several tabs, retries) must not each fetch the
+    # whole pool - that multiplies the memory spike. The first one fills the cache, the rest reuse it.
+    with _pool_lock:
+        hit = cache.get_browse("home_pool")
+        if hit:
+            return hit
+        # Two at a time at most; the memory gate would serialise more anyway.
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(_load_home_endpoint, _HOME_ENDPOINTS))
+        combined: list[Shelf] = []
+        seen_titles: set[str] = set()
+        for shelves in results:
+            for s in shelves or []:
+                title_clean = s.title.strip().lower()
+                if title_clean not in seen_titles and len(s.items) > 0:
+                    seen_titles.add(title_clean)
+                    combined.append(s)
+        # Only remember a complete pool; a partial one is served now but retried next time.
+        if combined and all(r is not None for r in results):
+            cache.set_browse("home_pool", combined)
+        return combined
 
 
 @router.get("/home", response_model=HomeResponse)
@@ -102,7 +118,7 @@ def home(response: Response, seed: Optional[int] = Query(None)):
     rng = random.Random(seed) if seed is not None else random.Random()
 
     picks = rng.sample(_GENRE_SHELVES, 4)
-    with ThreadPoolExecutor(max_workers=5) as ex:
+    with ThreadPoolExecutor(max_workers=2) as ex:
         genre_future = [ex.submit(_genre_shelf, spec) for spec in picks]
         pool = _home_pool()
         genre_shelves = [f.result() for f in genre_future]
@@ -127,12 +143,16 @@ def related(video_id: str):
         return hit
     tracks: list[Track] = []
     try:
-        raw = music_radio(video_id)
-        tracks = extract_tracks(raw, limit=50)
+        with memguard.light():
+            tracks = extract_tracks(music_radio(video_id), limit=50)
+    except memguard.Busy:
+        raise
     except Exception:
         try:
-            raw = music_next(video_id)
-            tracks = extract_tracks(raw, limit=50)
+            with memguard.light():
+                tracks = extract_tracks(music_next(video_id), limit=50)
+        except memguard.Busy:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=502, detail="Could not load recommendations") from exc
     tracks = [t for t in tracks if t.videoId != video_id]
@@ -148,10 +168,14 @@ def artist(channel_id: str):
     if hit:
         return hit
     try:
-        raw = music_browse(channel_id)
+        with memguard.light():
+            raw = music_browse(channel_id)
+            parsed = parse_artist(raw, channel_id)
+            del raw
+    except memguard.Busy:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=404, detail="Artist not found") from exc
-    parsed = parse_artist(raw, channel_id)
     cache.set_browse(key, parsed)
     return parsed
 
@@ -182,21 +206,23 @@ def _collection(ident: str, kind: str) -> CollectionPage:
     else:
         candidates.extend([f"VL{ident}", ident])
 
-    raw = None
+    parsed = None
     last_err: Exception | None = None
-    for cand in candidates:
-        try:
-            raw = music_browse(cand)
-            if raw:
-                break
-        except Exception as exc:
-            last_err = exc
-            continue
+    with memguard.light():
+        for cand in candidates:
+            try:
+                raw = music_browse(cand)
+                if raw:
+                    parsed = parse_collection(raw, ident, kind)
+                    del raw
+                    break
+            except Exception as exc:
+                last_err = exc
+                continue
 
-    if not raw:
+    if parsed is None:
         raise HTTPException(status_code=404, detail="Collection not found") from last_err
 
-    parsed = parse_collection(raw, ident, kind)
     if not parsed.tracks:
         raise HTTPException(status_code=404, detail="Collection not found")
     cache.set_browse(key, parsed)

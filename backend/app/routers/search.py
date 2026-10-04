@@ -4,7 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app import cache
+from app import cache, memguard
 from app.models import SearchResponse, Track
 from app.services.innertube_client import (
     music_search,
@@ -27,8 +27,10 @@ def search(
     hit = cache.get_search(key)
     if hit:
         return hit
-    raw = music_search(q, kind)
-    parsed = parse_search(raw, q, kind)
+    with memguard.light():
+        raw = music_search(q, kind)
+        parsed = parse_search(raw, q, kind)
+        del raw
     if parsed.songs or parsed.albums or parsed.artists or parsed.playlists or parsed.shelves:
         cache.set_search(key, parsed)
     return parsed

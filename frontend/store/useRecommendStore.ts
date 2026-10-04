@@ -4,10 +4,22 @@ import { create } from "zustand";
 import { api, type Signal } from "@/lib/api";
 import type { Mix, Track } from "@/lib/types";
 import { useHistoryStore } from "@/store/useHistoryStore";
+import { useHomeStore } from "@/store/useHomeStore";
 import { useLibraryStore } from "@/store/useLibraryStore";
 
 const CACHE_KEY = "geekify-mixes-v1";
 const MAX_AGE_MS = 10 * 60 * 1000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * The home feed and the mixes both hit YouTube Music through a small (512 MB) backend.
+ * Running them at the same moment doubles the memory spike, so mixes wait for the feed to settle.
+ */
+async function waitForHome(maxMs = 12000): Promise<void> {
+  const start = Date.now();
+  while (useHomeStore.getState().loading && Date.now() - start < maxMs) await sleep(250);
+}
 
 const toSignal = (t: Track): Signal => ({ videoId: t.videoId, artist: t.artist, title: t.title });
 
@@ -71,6 +83,7 @@ export const useRecommendStore = create<RecState>((set, get) => ({
 
     set({ loading: true, error: null });
     try {
+      await waitForHome();
       const res = await api.recommend(liked.map(toSignal), recent.map(toSignal));
       set({ mixes: res.mixes, seeds: res.seeds, loading: false, fetchedAt: Date.now(), likedKey });
       try {

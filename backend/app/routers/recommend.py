@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from app import cache
+from app import cache, memguard
 from app.models import Track
 from app.services.innertube_client import music_next, music_radio
 from app.services.parsers import extract_tracks
@@ -50,10 +50,12 @@ def _related(video_id: str) -> list[Track]:
         return hit
     tracks: list[Track] = []
     try:
-        tracks = extract_tracks(music_radio(video_id), limit=50)
-    except Exception:  # noqa: BLE001
+        with memguard.light():
+            tracks = extract_tracks(music_radio(video_id), limit=50)
+    except Exception:  # noqa: BLE001 - includes memguard.Busy: fall back, then give up quietly
         try:
-            tracks = extract_tracks(music_next(video_id), limit=50)
+            with memguard.light():
+                tracks = extract_tracks(music_next(video_id), limit=50)
         except Exception as exc:  # noqa: BLE001
             logger.warning("related failed for %s: %s", video_id, exc)
             return []
@@ -81,8 +83,9 @@ def recommend_mix(req: MixRequest) -> MixResponse:
     if hit:
         return hit
 
-    # Radio lookups are light HTTP calls; 3 at a time keeps memory flat on small hosts.
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    # Radio lookups are light HTTP calls, but each response is a big JSON document: 2 at a time (and
+    # the shared memory gate in app.memguard applies on top of this).
+    with ThreadPoolExecutor(max_workers=2) as pool:
         mixes, seeds = build_mixes(liked, recent, _related, map_fn=pool.map)
 
     res = MixResponse(

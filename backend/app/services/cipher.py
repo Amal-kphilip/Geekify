@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import ctypes
-import gc
 import logging
 import threading
 from contextlib import contextmanager
@@ -15,6 +13,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import yt_dlp
 
+from app import memguard
 from app.models import ArtistRef, Thumbnail, Track
 
 logger = logging.getLogger(__name__)
@@ -31,15 +30,16 @@ _GATE = threading.BoundedSemaphore(max(1, int(os.environ.get("YTDLP_MAX_CONCURRE
 
 
 def _release_memory() -> None:
-    gc.collect()
-    try:  # hand freed heap pages back to the OS (glibc only; harmless elsewhere)
-        ctypes.CDLL("libc.so.6").malloc_trim(0)
-    except Exception:  # noqa: BLE001
-        pass
+    memguard.release_memory()
 
 
 @contextmanager
 def resolver_slot(blocking: bool = True, timeout: float = 120.0):
+    """Only one yt-dlp run at a time, and only when the shared memory budget allows it.
+
+    The budget (see app.memguard) also covers the YouTube Music browse/search work, so a
+    yt-dlp + Deno run can't pile on top of several big JSON parses and OOM the box.
+    """
     if blocking:
         acquired = _GATE.acquire(timeout=timeout)
     else:
@@ -47,10 +47,15 @@ def resolver_slot(blocking: bool = True, timeout: float = 120.0):
     if not acquired:
         raise ResolverBusy("Server is busy resolving another track. Try again in a moment.")
     try:
-        yield
+        try:
+            with memguard.slot(memguard.YTDLP_COST, timeout=timeout if blocking else 0.0, blocking=blocking):
+                yield
+        except memguard.Busy as exc:
+            raise ResolverBusy(str(exc)) from exc
     finally:
         _GATE.release()
         _release_memory()
+
 
 # Player clients understood by current yt-dlp releases (the old android_music /
 # ios_music / android_creator / safari names no longer exist and were ignored).

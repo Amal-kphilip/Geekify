@@ -207,7 +207,7 @@ function SearchInner() {
           {data.artists.length > 0 && (type === "all" || type === "artist") && (
             <section>
               <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Artists</h2>
-              <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
+              <div className="no-scrollbar h-scroll flex gap-3.5 pb-1">
                 {data.artists.map((c) => (
                   <GlassCard
                     key={c.id}
@@ -222,7 +222,7 @@ function SearchInner() {
           {data.albums.length > 0 && (type === "all" || type === "album") && (
             <section>
               <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Albums</h2>
-              <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
+              <div className="no-scrollbar h-scroll flex gap-3.5 pb-1">
                 {data.albums.map((c) => (
                   <GlassCard
                     key={c.id}
@@ -237,7 +237,7 @@ function SearchInner() {
           {data.playlists.length > 0 && (type === "all" || type === "playlist") && (
             <section>
               <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Playlists</h2>
-              <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
+              <div className="no-scrollbar h-scroll flex gap-3.5 pb-1">
                 {data.playlists.map((c) => (
                   <GlassCard
                     key={c.id}

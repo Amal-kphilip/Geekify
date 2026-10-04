@@ -18,4 +18,19 @@ services:
         value: "131072"
       - key: YTDLP_MAX_CONCURRENT
         value: "1"
+      # Shared memory budget (see backend/app/memguard.py). Light YouTube Music requests cost 1 unit,
+      # a yt-dlp run (+ its Deno child) costs 3 of 4, so they can never all run at once.
+      - key: MEM_BUDGET
+        value: "4"
+      - key: MEM_YTDLP_COST
+        value: "3"
+      # Above SOFT we force a GC + malloc_trim; above HARD new work waits, then gets a 503
+      # (+ Retry-After) instead of the whole container being OOM-killed at 512 MB.
+      - key: MEM_SOFT_MB
+        value: "360"
+      - key: MEM_HARD_MB
+        value: "430"
+      # Fewer worker threads = fewer simultaneous multi-MB JSON documents and malloc arenas.
+      - key: MAX_THREADS
+        value: "10"
     plan: free

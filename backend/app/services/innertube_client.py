@@ -35,15 +35,27 @@ class PlayabilityError(Exception):
 
 def _client(name: str) -> innertube.InnerTube:
     # A fresh client per call keeps requests independent (the library stores the
-    # visitor id on the session). But each one owns an httpx.Client (SSL context +
-    # connection pool) that was never closed, so they piled up and ate RAM.
-    # Close the session as soon as the client is garbage-collected.
+    # visitor id on the session). Each one owns an httpx.Client (SSL context +
+    # connection pool). Callers go through _use() which closes it right after the
+    # request; the finalizer is only a safety net for the odd direct use.
     client = innertube.InnerTube(name)
     try:
         weakref.finalize(client, client.adaptor.session.close)
     except Exception:  # noqa: BLE001 - never let cleanup wiring break a request
         pass
     return client
+
+
+def _use(name: str, fn):
+    """Run ``fn(client)`` and close the client's HTTP session immediately afterwards."""
+    client = _client(name)
+    try:
+        return fn(client)
+    finally:
+        try:
+            client.adaptor.session.close()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _is_client_error(exc: Exception) -> bool:
@@ -72,23 +84,24 @@ def music_search(query: str, type_: str | None = None) -> dict:
     params = SEARCH_PARAMS.get(type_ or "", None)
 
     def _do():
-        client = _client("WEB_REMIX")
-        if params:
-            return client.search(query, params=params)
-        return client.search(query)
+        def run(client):
+            if params:
+                return client.search(query, params=params)
+            return client.search(query)
+
+        return _use("WEB_REMIX", run)
 
     try:
         return _call_with_retry(_do)
     except Exception:
-        return _call_with_retry(lambda: _client("WEB").search(query))
+        return _call_with_retry(lambda: _use("WEB", lambda c: c.search(query)))
 
 
 def music_browse(browse_id: str, params: str | None = None) -> dict:
     last_err: Exception | None = None
     for name in BROWSE_CLIENTS:
         try:
-            client = _client(name)
-            return _call_with_retry(lambda c=client: c.browse(browse_id, params=params))
+            return _call_with_retry(lambda n=name: _use(n, lambda c: c.browse(browse_id, params=params)))
         except Exception as exc:  # noqa: BLE001
             last_err = exc
             logger.warning("browse via %s failed: %s", name, exc)
@@ -97,29 +110,33 @@ def music_browse(browse_id: str, params: str | None = None) -> dict:
 
 def music_next(video_id: str) -> dict:
     def _do():
-        return _client("WEB_REMIX").next(video_id=video_id)
+        return _use("WEB_REMIX", lambda c: c.next(video_id=video_id))
 
     try:
         return _call_with_retry(_do)
     except Exception:
-        return _call_with_retry(lambda: _client("WEB").next(video_id=video_id))
+        return _call_with_retry(lambda: _use("WEB", lambda c: c.next(video_id=video_id)))
 
 
 def music_radio(video_id: str) -> dict:
     playlist_id = f"RDAMVM{video_id}"
-    return _call_with_retry(lambda: _client("WEB_REMIX").next(video_id=video_id, playlist_id=playlist_id))
+    return _call_with_retry(
+        lambda: _use("WEB_REMIX", lambda c: c.next(video_id=video_id, playlist_id=playlist_id))
+    )
 
 
 def player_response(video_id: str) -> tuple[dict, str]:
     last_err: Exception | None = None
     for name in PLAYER_CLIENTS:
         try:
-            client = _client(name)
 
-            def _do(c=client):
-                return c(
-                    Endpoint.PLAYER,
-                    body={"videoId": video_id, "params": PLAYER_PARAMS},
+            def _do(n=name):
+                return _use(
+                    n,
+                    lambda c: c(
+                        Endpoint.PLAYER,
+                        body={"videoId": video_id, "params": PLAYER_PARAMS},
+                    ),
                 )
 
             data = _call_with_retry(_do, attempts=1)
@@ -144,8 +161,9 @@ def player_response(video_id: str) -> tuple[dict, str]:
         raise last_err
     # last resort: WEB_REMIX (often ciphered)
     data = _call_with_retry(
-        lambda: _client("WEB_REMIX")(
-            Endpoint.PLAYER, body={"videoId": video_id, "params": PLAYER_PARAMS}
+        lambda: _use(
+            "WEB_REMIX",
+            lambda c: c(Endpoint.PLAYER, body={"videoId": video_id, "params": PLAYER_PARAMS}),
         )
     )
     return data, "WEB_REMIX"
@@ -256,12 +274,54 @@ def parse_search(raw: dict, query: str, type_: str | None) -> SearchResponse:
     )
 
 
+_SUBTITLE_NOISE = {"song", "songs", "video", "videos", "single", "ep"}
+
+
+def _artist_from_subtitle(subtitle: str | None) -> str:
+    """'Song • Artist • 12M plays' -> 'Artist'."""
+    parts = [p.strip() for p in str(subtitle or "").split("\u2022") if p.strip()]
+    parts = [
+        p
+        for p in parts
+        if p.lower() not in _SUBTITLE_NOISE and not p.lower().endswith(("plays", "views", "play", "view"))
+    ]
+    return parts[0] if parts else "Unknown"
+
+
+def _normalize_home_items(items: list, tracks: list[Track]) -> list:
+    """Song rows must be ``Track`` objects.
+
+    ``extract_cards`` also turns song rows into ``Card(type="song")``. Those have no
+    ``artist`` field, so the client could not tell they were songs (which is why the Home
+    "Songs" filter came back empty). Swap them for real tracks, keeping everything else.
+    """
+    by_id = {t.videoId: t for t in tracks}
+    out: list = []
+    seen: set[str] = set()
+    for it in items:
+        if isinstance(it, Card) and it.type == "song" and it.videoId:
+            it = by_id.get(it.videoId) or Track(
+                videoId=it.videoId,
+                title=it.title,
+                artist=_artist_from_subtitle(it.subtitle),
+                thumbnails=it.thumbnails,
+                type="song",
+            )
+        key = f"t:{it.videoId}" if isinstance(it, Track) else f"c:{it.type}:{it.id}"
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(it)
+    return out
+
+
 def parse_home(raw: dict) -> HomeResponse:
     shelves: list[Shelf] = []
     for title, block in P.extract_shelves(raw):
         tracks = P.extract_tracks(block, limit=24)
         cards = P.extract_cards(block, limit=24)
         items: list = tracks if tracks and not cards else (cards or tracks)
+        items = _normalize_home_items(items, tracks)
         if not items:
             continue
         shelves.append(Shelf(title=title or "For you", items=items))

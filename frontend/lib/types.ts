@@ -94,6 +94,42 @@ export function isTrack(item: Card | Track): item is Track {
   return "videoId" in item && Boolean((item as Track).videoId) && "artist" in item;
 }
 
+const SUBTITLE_NOISE = new Set(["song", "songs", "video", "videos", "single", "ep"]);
+
+/** True for a song that arrived as a card (type "song" + videoId) rather than as a full Track. */
+export function isSongCard(item: Card | Track): item is Card & { videoId: string } {
+  return !isTrack(item) && (item as Card).type === "song" && Boolean((item as Card).videoId);
+}
+
+/** "Song \u2022 Artist \u2022 12M plays" -> "Artist" */
+function artistFromSubtitle(subtitle?: string | null): string {
+  const parts = (subtitle ?? "")
+    .split("\u2022")
+    .map((p) => p.trim())
+    .filter((p) => p && !SUBTITLE_NOISE.has(p.toLowerCase()) && !/\b(plays?|views?)$/i.test(p));
+  return parts[0] ?? "Unknown";
+}
+
+/**
+ * Anything playable as a Track, or null for albums / playlists / artists.
+ * The feed can describe the same song either as a Track or as a "song" card, so every
+ * "is this a song?" decision goes through here.
+ */
+export function toTrack(item: Card | Track): Track | null {
+  if (isTrack(item)) return item;
+  if (isSongCard(item)) {
+    return {
+      videoId: item.videoId,
+      title: item.title,
+      artist: artistFromSubtitle(item.subtitle),
+      artists: [],
+      thumbnails: item.thumbnails,
+      type: "song",
+    };
+  }
+  return null;
+}
+
 export function artUrl(thumbs: Thumbnail[] | undefined, size = 300): string | undefined {
   if (!thumbs?.length) return undefined;
   const sorted = [...thumbs].sort((a, b) => (b.width || 0) - (a.width || 0));

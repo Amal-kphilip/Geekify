@@ -76,9 +76,22 @@ input:focus-visible {
     content-visibility: auto;
     contain-intrinsic-size: auto 300px;
   }
-  /* Scroll areas: keep momentum, never chain scrolling into the page. */
+  /* Vertical scroll panels (page body, queue, player): keep momentum, never chain into whatever is behind. */
   .scroll-area {
     overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  /*
+   * Horizontal carousels. These must NOT use overscroll-behavior on the y axis: a carousel is an
+   * overflow-x scroller, so with "contain" a vertical swipe / mouse wheel that starts on it is
+   * swallowed instead of scrolling the page (and Home is almost entirely carousels).
+   * Only horizontal overscroll is contained so a sideways swipe doesn't trigger browser back/forward.
+   */
+  .h-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: auto;
     -webkit-overflow-scrolling: touch;
   }
 }

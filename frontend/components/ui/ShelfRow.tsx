@@ -1,20 +1,26 @@
 "use client";
 
 import type { Card, Shelf, Track } from "@/lib/types";
-import { isTrack } from "@/lib/types";
+import { toTrack } from "@/lib/types";
 import { GlassCard, TrackCard } from "./GlassCard";
 import { useOpenCard } from "./useOpenCard";
 
 export function ShelfRow({ shelf }: { shelf: Shelf }) {
   const openCard = useOpenCard();
-  const tracks = shelf.items.filter(isTrack) as Track[];
-  const cards = shelf.items.filter((i) => !isTrack(i)) as Card[];
+  // A song can arrive as a Track or as a "song" card: treat both as songs.
+  const tracks: Track[] = [];
+  const cards: Card[] = [];
+  for (const item of shelf.items) {
+    const t = toTrack(item);
+    if (t) tracks.push(t);
+    else cards.push(item as Card);
+  }
   if (!tracks.length && !cards.length) return null;
 
   return (
     <section className="cv-auto mb-9">
       <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">{shelf.title}</h2>
-      <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
+      <div className="no-scrollbar h-scroll flex gap-3.5 pb-1">
         {cards.map((c) => (
           <GlassCard key={`${c.type}-${c.id}`} item={c} onClick={() => openCard(c, tracks)} />
         ))}
