@@ -46,9 +46,9 @@ function SortableItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 rounded-xl px-2 py-2 ${active ? "bg-[#25264a]" : "hover:bg-[#1d1e3d]"}`}
+      className={`flex items-center gap-2 rounded-2xl px-2 py-2 ${active ? "bg-white/[0.07]" : "hover:bg-white/[0.04]"}`}
     >
-      <button className="cursor-grab text-white/30" {...attributes} {...listeners} aria-label="Reorder">
+      <button className="cursor-grab touch-none p-1 text-white/30" {...attributes} {...listeners} aria-label="Reorder">
         <GripVertical className="h-4 w-4" />
       </button>
       <button
@@ -58,16 +58,16 @@ function SortableItem({
       >
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt="" className="h-9 w-9 rounded object-cover" />
+          <img src={thumb} alt="" className="h-10 w-10 rounded-xl object-cover" loading="lazy" decoding="async" />
         ) : (
-          <div className="h-9 w-9 rounded bg-white/10" />
+          <div className="h-10 w-10 rounded-xl bg-chip" />
         )}
         <div className="min-w-0">
-          <div className={`truncate text-sm ${active ? "text-brand" : ""}`}>{title}</div>
-          <div className="truncate text-xs text-[#9d9bbd]">{artist}</div>
+          <div className={`truncate text-sm ${active ? "text-lime" : ""}`}>{title}</div>
+          <div className="truncate text-xs text-muted">{artist}</div>
         </div>
       </button>
-      <button type="button" onClick={() => removeFromQueue(index)} className="p-1 text-white/35 hover:text-white">
+      <button type="button" onClick={() => removeFromQueue(index)} aria-label="Remove from queue" className="p-1.5 text-white/35 transition-colors hover:text-white">
         <X className="h-4 w-4" />
       </button>
     </div>
@@ -92,16 +92,16 @@ export function QueuePanel() {
   };
 
   return (
-    <aside className="flex h-full w-full flex-col glass-strong p-3 lg:w-[320px] lg:rounded-2xl">
+    <aside className="flex h-full w-full flex-col bg-surface p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:w-[320px] lg:rounded-[28px] lg:pt-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-bold">Queue</h3>
-        <button type="button" aria-label="Close queue" className="rounded-full p-2 text-[#aeabcf] hover:text-white" onClick={() => setQueueOpen(false)}>
+        <h3 className="text-lg font-semibold">Queue</h3>
+        <button type="button" aria-label="Close queue" className="flex h-9 w-9 items-center justify-center rounded-full bg-chip text-muted transition-colors hover:text-white" onClick={() => setQueueOpen(false)}>
           <X className="h-5 w-5" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
+      <div className="min-h-0 flex-1 scroll-area overflow-y-auto scrollbar-thin">
         {queue.length === 0 ? (
-          <p className="px-2 text-sm text-white/40">Queue is empty.</p>
+          <p className="px-2 text-sm text-muted">Queue is empty.</p>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={ids} strategy={verticalListSortingStrategy}>

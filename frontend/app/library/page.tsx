@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useLibraryStore } from "@/store/useLibraryStore";
 import { artUrl } from "@/lib/types";
-import { Heart, ListMusic } from "lucide-react";
+import { Heart, ListMusic, Plus } from "lucide-react";
 import { AccountMenu } from "@/components/auth/AccountMenu";
 
 export default function LibraryPage() {
@@ -13,49 +13,51 @@ export default function LibraryPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold md:text-3xl">Your Collection</h1>
-        <div className="flex items-center gap-3">
-        <div className="md:hidden">
-          <AccountMenu />
-        </div>
-        <button
-          type="button"
-          className="accent-bg rounded-full px-4 py-2 text-sm font-bold text-black transition hover:brightness-110"
-          onClick={() => {
-            const name = window.prompt("Playlist name", "My playlist");
-            if (name) createPlaylist(name);
-          }}
-        >
-          New playlist
-        </button>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <h1 className="text-[34px] font-semibold leading-tight tracking-tight md:text-4xl">Your Collection</h1>
+        <div className="flex items-center gap-2.5">
+          <div className="md:hidden">
+            <AccountMenu />
+          </div>
+          <button
+            type="button"
+            className="flex h-11 items-center gap-2 rounded-full bg-lime px-5 text-sm font-semibold text-ink transition-transform active:scale-95"
+            onClick={() => {
+              const name = window.prompt("Playlist name", "My playlist");
+              if (name) createPlaylist(name);
+            }}
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            <span className="hidden sm:inline">New playlist</span>
+            <span className="sm:hidden">New</span>
+          </button>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <Link href="/liked" className="group overflow-hidden rounded-3xl bg-white/[0.05] ring-1 ring-white/10 transition hover:bg-white/10">
-          <div className="flex aspect-square items-center justify-center accent-bg">
-            <Heart className="h-12 w-12 fill-black text-black" />
+        <Link href="/liked" className="group">
+          <div className="flex aspect-square items-center justify-center rounded-[28px] bg-lime">
+            <Heart className="h-12 w-12 fill-ink text-ink" />
           </div>
-          <div className="p-3">
-            <div className="font-bold">Favourites</div>
-            <div className="text-xs text-[#9d9bbd]">{liked.length} songs</div>
+          <div className="mt-3">
+            <div className="text-[15px] font-semibold">Favourites</div>
+            <div className="text-[13px] text-muted">{liked.length} songs</div>
           </div>
         </Link>
         {playlists.map((p) => {
           const cover = artUrl(p.tracks[0]?.thumbnails, 300);
           return (
-            <Link key={p.id} href={`/playlist/local/${p.id}`} className="overflow-hidden rounded-3xl bg-white/[0.05] ring-1 ring-white/10 transition hover:bg-white/10">
+            <Link key={p.id} href={`/playlist/local/${p.id}`} className="group">
               {cover ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={cover} alt="" className="aspect-square w-full object-cover" />
+                <img src={cover} alt="" loading="lazy" decoding="async" className="aspect-square w-full rounded-[28px] object-cover" />
               ) : (
-                <div className="flex aspect-square items-center justify-center bg-white/5">
-                  <ListMusic className="h-10 w-10 text-white/30" />
+                <div className="flex aspect-square items-center justify-center rounded-[28px] bg-elevated">
+                  <ListMusic className="h-10 w-10 text-white/25" />
                 </div>
               )}
-              <div className="p-3">
-                <div className="truncate font-bold">{p.name}</div>
-                <div className="text-xs text-[#9d9bbd]">{p.tracks.length} songs</div>
+              <div className="mt-3">
+                <div className="truncate text-[15px] font-semibold">{p.name}</div>
+                <div className="text-[13px] text-muted">{p.tracks.length} songs</div>
               </div>
             </Link>
           );

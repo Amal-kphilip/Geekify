@@ -9,6 +9,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { artUrl } from "@/lib/types";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { useRouter } from "next/navigation";
+import { PlayButton } from "@/components/ui/CollectionHeader";
 
 export default function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,37 +26,33 @@ export default function ArtistDetailPage() {
       .catch((e: Error) => setError(e.message));
   }, [id]);
 
-  if (error) return <div className="glass rounded-2xl p-6 text-amber-200">{error}</div>;
-  if (!data) return <div className="h-64 animate-pulse rounded-3xl bg-white/5" />;
+  if (error) return <div className="rounded-3xl bg-elevated p-6 text-amber-200">{error}</div>;
+  if (!data) return <div className="h-64 animate-pulse rounded-[32px] bg-elevated" />;
 
   const cover = artUrl(data.thumbnails, 800);
 
   return (
     <div>
-      <div className="relative mb-8 overflow-hidden rounded-3xl">
+      <div className="relative mb-8 h-64 overflow-hidden rounded-[32px] bg-elevated">
         {cover && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt="" className="h-64 w-full object-cover opacity-50" />
+          <img src={cover} alt="" decoding="async" className="h-full w-full object-cover opacity-60" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#14152e] to-transparent" />
-        <div className="absolute bottom-6 left-6">
-          <div className="text-xs uppercase tracking-widest text-white/60">Artist</div>
-          <h1 className="text-4xl font-semibold">{data.name}</h1>
+        <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/30 to-transparent" />
+        <div className="absolute inset-x-6 bottom-6">
+          <div className="text-sm font-medium text-white/70">Artist</div>
+          <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">{data.name}</h1>
           {data.songs[0] && (
-            <button
-              type="button"
-              onClick={() => play(data.songs[0], data.songs)}
-              className="mt-4 rounded-full bg-white px-5 py-2 text-sm font-medium text-black"
-            >
-              Play
-            </button>
+            <div className="mt-4">
+              <PlayButton onClick={() => play(data.songs[0], data.songs)} />
+            </div>
           )}
         </div>
       </div>
-      {data.description && <p className="mb-8 max-w-3xl text-sm leading-relaxed text-white/55">{data.description}</p>}
+      {data.description && <p className="mb-8 max-w-3xl text-sm leading-relaxed text-muted">{data.description}</p>}
       {data.songs.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-lg font-semibold">Popular</h2>
+          <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Popular</h2>
           {data.songs.map((t, i) => (
             <TrackRow key={t.videoId} track={t} index={i} queue={data.songs} />
           ))}
@@ -63,8 +60,8 @@ export default function ArtistDetailPage() {
       )}
       {data.albums.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-lg font-semibold">Albums</h2>
-          <div className="scrollbar-thin flex gap-4 overflow-x-auto pb-2">
+          <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Albums</h2>
+          <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
             {data.albums.map((c) => (
               <GlassCard
                 key={c.id}
@@ -77,8 +74,8 @@ export default function ArtistDetailPage() {
       )}
       {data.singles.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-lg font-semibold">Singles</h2>
-          <div className="scrollbar-thin flex gap-4 overflow-x-auto pb-2">
+          <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Singles</h2>
+          <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
             {data.singles.map((c) => (
               <GlassCard
                 key={c.id}

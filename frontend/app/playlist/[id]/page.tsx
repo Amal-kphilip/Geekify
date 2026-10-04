@@ -7,6 +7,7 @@ import type { CollectionPage } from "@/lib/types";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { artUrl } from "@/lib/types";
 import { usePlayerStore } from "@/store/usePlayerStore";
+import { CollectionHeader, PlayButton } from "@/components/ui/CollectionHeader";
 
 export default function PlaylistPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,32 +28,15 @@ export default function PlaylistPage() {
       });
   }, [id]);
 
-  if (error) return <div className="glass rounded-2xl p-6 text-amber-200">{error}</div>;
-  if (!data) return <div className="h-64 animate-pulse rounded-3xl bg-white/5" />;
+  if (error) return <div className="rounded-3xl bg-elevated p-6 text-amber-200">{error}</div>;
+  if (!data) return <div className="h-64 animate-pulse rounded-[32px] bg-elevated" />;
   const cover = artUrl(data.thumbnails, 400);
 
   return (
     <div>
-      <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end">
-        {cover && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt="" className="h-48 w-48 rounded-2xl object-cover shadow-2xl" />
-        )}
-        <div>
-          <div className="text-xs uppercase tracking-widest text-white/45">Playlist</div>
-          <h1 className="text-4xl font-semibold">{data.title}</h1>
-          <p className="mt-2 text-sm text-white/50">{data.subtitle || `${data.tracks.length} tracks`}</p>
-          {data.tracks[0] && (
-            <button
-              type="button"
-              onClick={() => play(data.tracks[0], data.tracks)}
-              className="mt-4 rounded-full bg-white px-5 py-2 text-sm font-medium text-black"
-            >
-              Play
-            </button>
-          )}
-        </div>
-      </div>
+      <CollectionHeader cover={cover} kind="Playlist" title={data.title} meta={data.subtitle || `${data.tracks.length} tracks`}>
+        {data.tracks[0] && <PlayButton onClick={() => play(data.tracks[0], data.tracks)} />}
+      </CollectionHeader>
       {data.tracks.map((t, i) => (
         <TrackRow key={t.videoId} track={t} index={i} queue={data.tracks} />
       ))}

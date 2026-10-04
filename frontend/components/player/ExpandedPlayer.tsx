@@ -11,7 +11,7 @@ import { useUiStore } from "@/store/useUiStore";
 import { PlayPauseMorph } from "./PlayPauseMorph";
 import { SeekBar } from "./SeekBar";
 
-/** Full-screen player (mobile + desktop): cover, title, timeline, controls. */
+/** Full-screen player (mobile + desktop): round cover, title, timeline, controls. */
 export function ExpandedPlayer() {
   const track = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -28,7 +28,7 @@ export function ExpandedPlayer() {
   const setQueueOpen = useUiStore((s) => s.setQueueOpen);
   const liked = useLibraryStore((s) => (track ? s.liked.some((t) => t.videoId === track.videoId) : false));
   const toggleLike = useLibraryStore((s) => s.toggleLike);
-  const [tint, setTint] = useState("rgb(60, 60, 60)");
+  const [tint, setTint] = useState("rgba(90, 86, 110, 0.6)");
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
@@ -41,49 +41,66 @@ export function ExpandedPlayer() {
 
   const src = proxiedArt(artUrl(track?.thumbnails, 800)) || artUrl(track?.thumbnails, 400);
 
-  // Background = the cover's main colour fading into the app's dark panel colour.
+  // Background = the cover's main colour fading into the app's dark base. A plain gradient: no blur filters.
   useEffect(() => {
     const img = imgRef.current;
     if (!img) return;
-    const apply = () => setTint(rgbCss(sampleDominantColor(img), 1));
+    const apply = () => setTint(rgbCss(sampleDominantColor(img), 0.55));
     if (img.complete && img.naturalWidth) apply();
     else img.addEventListener("load", apply, { once: true });
   }, [src]);
 
   const loading = isBuffering && isPlaying;
   const iconBtn = (active: boolean) =>
-    `relative rounded-full p-2 transition ${active ? "text-brand" : "text-white/70 hover:text-white"}`;
+    `relative flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
+      active ? "text-lime" : "text-white/70 hover:text-white"
+    }`;
+  const circle =
+    "flex items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 active:scale-95";
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 24 }}
-      transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-[100] flex flex-col overflow-y-auto overflow-x-hidden px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]"
-      style={{ background: `linear-gradient(180deg, ${tint} 0%, rgba(0,0,0,0.55) 45%, #14152e 100%), #14152e` }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="scroll-area fixed inset-0 z-[100] flex flex-col overflow-y-auto overflow-x-hidden px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]"
+      style={{ background: `linear-gradient(180deg, ${tint} 0%, #0c0b11 62%), #0c0b11` }}
     >
       <div className="mx-auto flex w-full max-w-xl flex-1 flex-col">
-        <div className="flex items-center justify-between py-2">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center py-2">
           <button
             type="button"
             onClick={() => setExpanded(false)}
-            className="rounded-full p-2 text-white transition hover:bg-white/10"
+            className={`h-11 w-11 justify-self-start ${circle}`}
             aria-label="Close full player"
             title="Close (Esc)"
           >
-            <ChevronDown className="h-7 w-7" />
+            <ChevronDown className="h-6 w-6" />
           </button>
-          <div className="text-xs font-semibold uppercase tracking-wider text-white/80">Now playing</div>
-          <button
-            type="button"
-            onClick={() => setQueueOpen(true)}
-            className="rounded-full p-2 text-white transition hover:bg-white/10"
-            aria-label="Open queue"
-            title="Queue"
-          >
-            <ListMusic className="h-6 w-6" />
-          </button>
+          <div className="text-base font-semibold">Now playing</div>
+          <div className="flex items-center gap-2 justify-self-end">
+            <button
+              type="button"
+              onClick={() => setQueueOpen(true)}
+              className={`h-11 w-11 ${circle}`}
+              aria-label="Open queue"
+              title="Queue"
+            >
+              <ListMusic className="h-5 w-5" />
+            </button>
+            {track && (
+              <button
+                type="button"
+                onClick={() => toggleLike(track)}
+                className={`h-11 w-11 ${circle}`}
+                aria-label={liked ? "Unlike" : "Like"}
+                aria-pressed={liked}
+              >
+                <Heart className={`h-5 w-5 ${liked ? "fill-lime text-lime" : ""}`} />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-1 items-center justify-center py-4">
@@ -93,59 +110,49 @@ export function ExpandedPlayer() {
               ref={imgRef}
               src={src}
               alt=""
-              className="aspect-square rounded-2xl object-cover shadow-2xl shadow-black/50"
-              style={{ width: "min(100%, 44dvh)" }}
+              decoding="async"
+              className="aspect-square rounded-full object-cover shadow-2xl shadow-black/50"
+              style={{ width: "min(100%, 42dvh)" }}
             />
           ) : (
-            <div className="aspect-square rounded-2xl bg-white/10" style={{ width: "min(100%, 44dvh)" }} />
+            <div className="aspect-square rounded-full bg-white/10" style={{ width: "min(100%, 42dvh)" }} />
           )}
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 className="line-clamp-2 text-2xl font-bold leading-tight">{track?.title || "Nothing playing"}</h2>
-            <p className="mt-1 truncate text-white/70">{track?.artist}</p>
-          </div>
-          {track && (
-            <button
-              type="button"
-              onClick={() => toggleLike(track)}
-              className="rounded-full p-2"
-              aria-label={liked ? "Unlike" : "Like"}
-              aria-pressed={liked}
-            >
-              <Heart className={`h-7 w-7 ${liked ? "fill-brand text-brand" : "text-white/80 hover:text-white"}`} />
-            </button>
-          )}
+        <div className="text-center">
+          <h2 className="line-clamp-2 text-[26px] font-semibold leading-tight tracking-tight">
+            {track?.title || "Nothing playing"}
+          </h2>
+          <p className="mt-1.5 truncate text-[15px] text-white/60">{track?.artist}</p>
         </div>
 
         {playError && <div className="mt-3 text-center text-xs text-amber-300">{playError}</div>}
 
-        <SeekBar large className="mt-4" />
+        <SeekBar large className="mt-8" />
 
-        <div className="mt-3 flex items-center justify-between">
+        <div className="mt-5 flex items-center justify-between">
           <button type="button" onClick={toggleShuffle} className={iconBtn(shuffle)} aria-label="Shuffle" aria-pressed={shuffle}>
-            <Shuffle className="h-6 w-6" />
-            {shuffle && <span className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-brand" />}
+            <Shuffle className="h-5 w-5" />
+            {shuffle && <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-lime" />}
           </button>
-          <button type="button" onClick={previous} className="rounded-full p-2 text-white" aria-label="Previous">
-            <SkipBack className="h-9 w-9 fill-current" />
+          <button type="button" onClick={previous} className={`h-14 w-14 ${circle}`} aria-label="Previous">
+            <SkipBack className="h-6 w-6 fill-current" />
           </button>
           <button
             type="button"
             onClick={togglePlay}
             disabled={!track}
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-white transition hover:scale-105 active:scale-95 disabled:opacity-40"
+            className="flex h-[76px] w-[76px] items-center justify-center rounded-full bg-lime transition-transform hover:scale-105 active:scale-95 disabled:opacity-40"
             aria-label={isPlaying ? "Pause" : "Play"}
           >
             <PlayPauseMorph playing={isPlaying} loading={loading} />
           </button>
-          <button type="button" onClick={next} className="rounded-full p-2 text-white" aria-label="Next">
-            <SkipForward className="h-9 w-9 fill-current" />
+          <button type="button" onClick={next} className={`h-14 w-14 ${circle}`} aria-label="Next">
+            <SkipForward className="h-6 w-6 fill-current" />
           </button>
           <button type="button" onClick={cycleRepeat} className={iconBtn(repeatMode !== "off")} aria-label="Repeat" aria-pressed={repeatMode !== "off"}>
-            {repeatMode === "one" ? <Repeat1 className="h-6 w-6" /> : <Repeat className="h-6 w-6" />}
-            {repeatMode !== "off" && <span className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-brand" />}
+            {repeatMode === "one" ? <Repeat1 className="h-5 w-5" /> : <Repeat className="h-5 w-5" />}
+            {repeatMode !== "off" && <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-lime" />}
           </button>
         </div>
       </div>

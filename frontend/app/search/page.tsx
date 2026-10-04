@@ -104,7 +104,7 @@ function SearchInner() {
     <div className="pb-8">
       {/* Search Header and Main Search Bar */}
       <div className="mb-6">
-        <h1 className="mb-4 text-3xl font-bold tracking-tight">Search</h1>
+        <h1 className="mb-4 text-[34px] font-semibold leading-tight tracking-tight md:text-4xl">Search</h1>
         <div className="relative max-w-2xl">
           <input
             ref={inputRef}
@@ -112,14 +112,14 @@ function SearchInner() {
             value={searchInput}
             onChange={(e) => handleQueryChange(e.target.value)}
             placeholder="Search songs, artists, albums, or playlists..."
-            className="w-full rounded-full bg-[#25264a] px-5 py-3.5 text-base font-medium text-white placeholder:text-[#9d9bbd] outline-none ring-1 ring-transparent transition hover:bg-[#2e2f58] focus:ring-2 focus:ring-white"
+            className="w-full rounded-full bg-chip px-6 py-4 text-base font-medium text-white outline-none ring-1 ring-transparent transition-shadow placeholder:text-muted focus:ring-2 focus:ring-lime"
             autoFocus={!initialQ}
           />
           {searchInput && (
             <button
               type="button"
               onClick={() => handleQueryChange("")}
-              className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/60 hover:bg-white/20 hover:text-white"
+              className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70 transition-colors hover:bg-white/20 hover:text-white"
             >
               Clear
             </button>
@@ -130,8 +130,8 @@ function SearchInner() {
       {/* Quick Suggestions Chips */}
       {!activeQuery && (
         <div className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-white/50">
-            Explore Genres & Vibes
+          <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">
+            Explore genres &amp; vibes
           </h2>
           <div className="flex flex-wrap gap-2">
             {QUICK_TAGS.map((tag) => (
@@ -139,7 +139,7 @@ function SearchInner() {
                 key={tag}
                 type="button"
                 onClick={() => handleQueryChange(tag)}
-                className="cursor-pointer rounded-full bg-[#25264a] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#2e2f58]"
+                className="rounded-full bg-chip px-5 py-2.5 text-[15px] font-medium text-white transition-colors hover:bg-lime hover:text-ink"
               >
                 {tag}
               </button>
@@ -150,16 +150,14 @@ function SearchInner() {
 
       {/* Category Tabs */}
       {activeQuery && (
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div className="no-scrollbar mb-6 flex gap-2.5 overflow-x-auto">
           {TABS.map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setType(t)}
-              className={`cursor-pointer rounded-full px-4 py-1.5 text-sm font-medium capitalize transition ${
-                type === t
-                  ? "bg-brand text-black"
-                  : "bg-[#25264a] text-white hover:bg-[#2e2f58]"
+              className={`shrink-0 rounded-full px-5 py-2.5 text-[15px] font-medium capitalize transition-colors ${
+                type === t ? "bg-lime text-ink" : "bg-chip text-white/85 hover:bg-white/15"
               }`}
             >
               {t === "song" ? "songs" : t}
@@ -171,23 +169,23 @@ function SearchInner() {
       {/* Loading Skeleton */}
       {loading && (
         <div className="space-y-3">
-          <div className="h-5 w-32 animate-pulse rounded bg-white/10" />
+          <div className="h-5 w-32 animate-pulse rounded-full bg-chip" />
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-xl bg-white/5" />
+            <div key={i} className="h-[72px] animate-pulse rounded-3xl bg-elevated" />
           ))}
         </div>
       )}
 
       {/* Error Message */}
       {error && !loading && (
-        <div className="glass rounded-2xl p-4 text-sm text-amber-200">
+        <div className="rounded-3xl bg-elevated p-5 text-sm text-amber-200">
           {error}
         </div>
       )}
 
       {/* Empty State */}
       {empty && (
-        <div className="glass rounded-2xl p-8 text-center text-white/50">
+        <div className="rounded-3xl bg-elevated p-8 text-center text-muted">
           No music found for &ldquo;{activeQuery}&rdquo;. Try another search.
         </div>
       )}
@@ -197,7 +195,7 @@ function SearchInner() {
         <div className="space-y-8">
           {data.songs.length > 0 && (type === "all" || type === "song") && (
             <section>
-              <h2 className="mb-3 text-lg font-semibold tracking-tight">Songs</h2>
+              <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Songs</h2>
               <div className="space-y-1">
                 {data.songs.map((t, idx) => (
                   <TrackRow key={t.videoId + idx} track={t} queue={data.songs} />
@@ -208,8 +206,8 @@ function SearchInner() {
 
           {data.artists.length > 0 && (type === "all" || type === "artist") && (
             <section>
-              <h2 className="mb-3 text-lg font-semibold tracking-tight">Artists</h2>
-              <div className="scrollbar-thin flex gap-4 overflow-x-auto pb-2">
+              <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Artists</h2>
+              <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
                 {data.artists.map((c) => (
                   <GlassCard
                     key={c.id}
@@ -223,8 +221,8 @@ function SearchInner() {
 
           {data.albums.length > 0 && (type === "all" || type === "album") && (
             <section>
-              <h2 className="mb-3 text-lg font-semibold tracking-tight">Albums</h2>
-              <div className="scrollbar-thin flex gap-4 overflow-x-auto pb-2">
+              <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Albums</h2>
+              <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
                 {data.albums.map((c) => (
                   <GlassCard
                     key={c.id}
@@ -238,8 +236,8 @@ function SearchInner() {
 
           {data.playlists.length > 0 && (type === "all" || type === "playlist") && (
             <section>
-              <h2 className="mb-3 text-lg font-semibold tracking-tight">Playlists</h2>
-              <div className="scrollbar-thin flex gap-4 overflow-x-auto pb-2">
+              <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">Playlists</h2>
+              <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
                 {data.playlists.map((c) => (
                   <GlassCard
                     key={c.id}
@@ -268,7 +266,7 @@ function SearchInner() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="h-40 animate-pulse rounded-2xl bg-white/5" />}>
+    <Suspense fallback={<div className="h-40 animate-pulse rounded-3xl bg-elevated" />}>
       <SearchInner />
     </Suspense>
   );

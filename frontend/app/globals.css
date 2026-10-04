@@ -4,56 +4,60 @@
 
 @layer base {
   :root {
-    --background: #0a0b1f;
-    --foreground: #f4f3ff;
-    --brand: #b69cff;
-    --brand2: #5eead4;
-    --panel: #14152e;
-    --elevated: #1d1e3d;
+    --background: #0c0b11;
+    --foreground: #f5f4f8;
+    --lime: #c6e84a;
+    --seek-fill: #c6e84a;
+    --seek-track: rgba(255, 255, 255, 0.14);
   }
 }
 
 html,
 body {
   height: 100%;
+  background: var(--background);
 }
 
 body {
   color: var(--foreground);
-  background: var(--background);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  text-rendering: optimizeLegibility;
 }
 
-/* Frosted-glass surfaces (the signature Geekify look). */
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* Visible keyboard focus everywhere, no ring on mouse/touch. */
+:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+input:focus-visible {
+  outline: none;
+}
+
 @layer utilities {
-  .glass {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-  }
-  .glass-strong {
-    background: rgba(20, 21, 46, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(26px) saturate(140%);
-    -webkit-backdrop-filter: blur(26px) saturate(140%);
+  .accent-bg {
+    background: var(--lime);
+    color: #0c0b11;
   }
   .accent-text {
-    background: linear-gradient(90deg, #b69cff, #5eead4);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--lime);
   }
-  .accent-bg {
-    background: linear-gradient(135deg, #b69cff, #5eead4);
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.16);
     border-radius: 99px;
     border: 3px solid transparent;
     background-clip: content-box;
@@ -67,6 +71,16 @@ body {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  /* Skip layout + paint of off-screen sections. Big win on long feeds. */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 300px;
+  }
+  /* Scroll areas: keep momentum, never chain scrolling into the page. */
+  .scroll-area {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* ---- Range inputs (seek bar / volume) ---- */
@@ -76,19 +90,17 @@ input[type="range"] {
   background: transparent;
   height: 4px;
   cursor: pointer;
-  --seek-fill: #e9e5ff;
-}
-input[type="range"]:hover:not(:disabled) {
-  --seek-fill: #1ed760;
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  height: 12px;
-  width: 12px;
+  height: 14px;
+  width: 14px;
   border-radius: 999px;
-  background: #fff;
-  margin-top: -4px;
+  background: var(--lime);
+  box-shadow: 0 0 0 3px #0c0b11;
+  margin-top: -5px;
   opacity: 0;
+  transition: opacity 120ms;
 }
 input[type="range"]:hover::-webkit-slider-thumb,
 input[type="range"]:focus-visible::-webkit-slider-thumb,
@@ -106,11 +118,12 @@ input[type="range"]::-moz-range-track {
   background: transparent;
 }
 input[type="range"]::-moz-range-thumb {
-  height: 12px;
-  width: 12px;
+  height: 14px;
+  width: 14px;
   border: 0;
   border-radius: 999px;
-  background: #fff;
+  background: var(--lime);
+  box-shadow: 0 0 0 3px #0c0b11;
   opacity: 0;
 }
 input[type="range"]:hover::-moz-range-thumb,
@@ -119,7 +132,7 @@ input[type="range"].seekbar-lg::-moz-range-thumb {
 }
 input[type="range"]:disabled {
   cursor: default;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 /* Bigger, finger-friendly thumb for the seek bars on touch devices */
@@ -129,14 +142,14 @@ input[type="range"]:disabled {
     background-clip: content-box;
   }
   input[type="range"].seekbar::-webkit-slider-thumb {
-    height: 16px;
-    width: 16px;
-    margin-top: -6px;
+    height: 18px;
+    width: 18px;
+    margin-top: -7px;
     opacity: 1;
   }
   input[type="range"].seekbar::-moz-range-thumb {
-    height: 16px;
-    width: 16px;
+    height: 18px;
+    width: 18px;
     opacity: 1;
   }
 }
@@ -150,34 +163,16 @@ input[type="range"]:disabled {
   animation: spin-slow 0.8s linear infinite;
 }
 
-/* Aurora backdrop: soft colour blooms behind the glass panels. */
-.aurora {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(60% 50% at 12% 8%, rgba(139, 92, 246, 0.28), transparent 70%),
-    radial-gradient(50% 45% at 92% 12%, rgba(45, 212, 191, 0.18), transparent 70%),
-    radial-gradient(55% 50% at 70% 100%, rgba(236, 72, 153, 0.16), transparent 70%),
-    #0a0b1f;
-}
-
-/* Record-style artwork in the player dock. */
-@keyframes record-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.record {
-  animation: record-spin 16s linear infinite;
-  animation-play-state: paused;
-}
-.record.is-playing {
-  animation-play-state: running;
-}
 @media (prefers-reduced-motion: reduce) {
-  .record {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .spinner {
+    animation-duration: 0.8s !important;
+    animation-iteration-count: infinite !important;
   }
 }

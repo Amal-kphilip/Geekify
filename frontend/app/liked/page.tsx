@@ -2,6 +2,7 @@
 
 import { Heart } from "lucide-react";
 import { TrackRow } from "@/components/ui/TrackRow";
+import { CollectionHeader, PlayButton } from "@/components/ui/CollectionHeader";
 import { useLibraryStore } from "@/store/useLibraryStore";
 import { usePlayerStore } from "@/store/usePlayerStore";
 
@@ -10,27 +11,20 @@ export default function LikedPage() {
   const play = usePlayerStore((s) => s.play);
   return (
     <div>
-      <div className="mb-6 flex items-end gap-5">
-        <div className="flex h-36 w-36 items-center justify-center rounded-xl bg-[#4b3fd6] shadow-xl shadow-black/40">
-          <Heart className="h-14 w-14 fill-white text-white" />
-        </div>
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-white/70">Playlist</div>
-          <h1 className="text-4xl font-extrabold md:text-6xl">Favourites</h1>
-          <p className="mt-2 text-sm text-[#aeabcf]">{liked.length} tracks</p>
-          {liked[0] && (
-            <button
-              type="button"
-              onClick={() => play(liked[0], liked)}
-              className="mt-4 rounded-full bg-brand px-6 py-2.5 text-sm font-bold text-black transition hover:scale-105"
-            >
-              Play
-            </button>
-          )}
-        </div>
-      </div>
+      <CollectionHeader
+        kind="Playlist"
+        title="Favourites"
+        meta={`${liked.length} tracks`}
+        coverNode={
+          <div className="flex h-48 w-48 shrink-0 items-center justify-center rounded-[32px] bg-lime">
+            <Heart className="h-16 w-16 fill-ink text-ink" />
+          </div>
+        }
+      >
+        {liked[0] && <PlayButton onClick={() => play(liked[0], liked)} />}
+      </CollectionHeader>
       {liked.length === 0 ? (
-        <p className="text-white/45">Heart a track to save it here.</p>
+        <p className="text-muted">Heart a track to save it here.</p>
       ) : (
         liked.map((t, i) => <TrackRow key={t.videoId} track={t} index={i} queue={liked} />)
       )}

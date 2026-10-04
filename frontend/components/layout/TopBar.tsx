@@ -46,15 +46,15 @@ export function TopBar() {
     <header className="hidden shrink-0 items-center gap-3 md:flex">
       <form
         onSubmit={onSubmit}
-        className="glass group relative flex h-12 w-full max-w-2xl items-center rounded-2xl ring-1 ring-transparent transition focus-within:ring-brand"
+        className="group relative flex h-12 w-full max-w-2xl items-center rounded-full bg-surface ring-1 ring-transparent transition-shadow focus-within:ring-lime"
       >
-        <Search className="pointer-events-none ml-4 h-5 w-5 shrink-0 text-[#aeabcf] group-focus-within:text-brand" />
+        <Search className="pointer-events-none ml-4 h-5 w-5 shrink-0 text-muted group-focus-within:text-lime" />
         <input
           ref={inputRef}
           value={q}
           onChange={(e) => onInputChange(e.target.value)}
           placeholder="Search songs, artists, moods…"
-          className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-[#9d9bbd]"
+          className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-muted"
         />
         {q && (
           <button
@@ -65,7 +65,7 @@ export function TopBar() {
               inputRef.current?.focus();
               if (pathname === "/search") router.replace("/search");
             }}
-            className="mr-3 rounded-full p-1 text-[#aeabcf] hover:text-white"
+            className="mr-3 rounded-full p-1 text-muted hover:text-white"
           >
             <X className="h-4 w-4" />
           </button>

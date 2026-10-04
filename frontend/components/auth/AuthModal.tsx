@@ -19,8 +19,8 @@ function GoogleMark() {
 }
 
 const FIELD =
-  "flex h-12 items-center gap-3 rounded-2xl bg-white/[0.06] px-4 ring-1 ring-white/10 transition focus-within:ring-brand";
-const INPUT = "h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9d9bbd]";
+  "flex h-12 items-center gap-3 rounded-full bg-chip px-5 ring-1 ring-transparent transition-shadow focus-within:ring-lime";
+const INPUT = "h-full min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted";
 
 export function AuthModal() {
   const open = useUiStore((s) => s.authOpen);
@@ -96,22 +96,22 @@ export function AuthModal() {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Sign in">
-      <button type="button" aria-label="Close" className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
-      <div className="glass-strong relative w-full max-w-md rounded-t-3xl p-6 shadow-2xl sm:rounded-3xl sm:p-8">
-        <button type="button" aria-label="Close" onClick={() => setOpen(false)} className="absolute right-4 top-4 rounded-full p-2 text-[#aeabcf] transition hover:bg-white/10 hover:text-white">
+      <button type="button" aria-label="Close" className="absolute inset-0 animate-fade cursor-default bg-black/70" onClick={() => setOpen(false)} />
+      <div className="relative w-full max-w-md animate-sheet rounded-t-[32px] bg-surface p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl shadow-black/60 sm:rounded-[32px] sm:p-8">
+        <button type="button" aria-label="Close" onClick={() => setOpen(false)} className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-chip text-muted transition-colors hover:text-white">
           <X className="h-5 w-5" />
         </button>
 
         <div className="mb-6">
-          <div className="accent-text text-2xl font-bold tracking-tight">Geekify</div>
+          <div className="text-2xl font-bold tracking-tight text-lime">Geekify</div>
           <h2 className="mt-1 text-xl font-semibold">{mode === "signin" ? "Welcome back" : "Create your account"}</h2>
-          <p className="mt-1 text-sm text-[#aeabcf]">
+          <p className="mt-1 text-sm text-muted">
             Keep your favourites, playlists and mixes on every device.
           </p>
         </div>
 
         {!configured ? (
-          <div className="rounded-2xl bg-amber-400/10 p-4 text-sm text-amber-200" role="alert">
+          <div className="rounded-3xl bg-amber-400/10 p-4 text-sm text-amber-200" role="alert">
             Accounts aren&apos;t set up on this site yet. The owner needs to add the Firebase settings
             (see the README), then redeploy. You can keep using Geekify as a guest in the meantime.
           </div>
@@ -121,13 +121,13 @@ export function AuthModal() {
               type="button"
               disabled={busy}
               onClick={() => void run(signInGoogle)}
-              className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-white text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-60"
+              className="flex h-12 w-full items-center justify-center gap-3 rounded-full bg-white text-sm font-semibold text-black transition-transform active:scale-[0.98] disabled:opacity-60"
             >
               <GoogleMark />
               Continue with Google
             </button>
 
-            <div className="my-5 flex items-center gap-3 text-xs text-[#9d9bbd]">
+            <div className="my-5 flex items-center gap-3 text-xs text-muted">
               <span className="h-px flex-1 bg-white/10" />
               or use email
               <span className="h-px flex-1 bg-white/10" />
@@ -136,16 +136,16 @@ export function AuthModal() {
             <form onSubmit={onSubmit} className="space-y-3" noValidate>
               {mode === "signup" && (
                 <label className={FIELD}>
-                  <User className="h-4 w-4 shrink-0 text-[#9d9bbd]" />
+                  <User className="h-4 w-4 shrink-0 text-muted" />
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" autoComplete="nickname" className={INPUT} />
                 </label>
               )}
               <label className={FIELD}>
-                <Mail className="h-4 w-4 shrink-0 text-[#9d9bbd]" />
+                <Mail className="h-4 w-4 shrink-0 text-muted" />
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className={INPUT} />
               </label>
               <label className={FIELD}>
-                <Lock className="h-4 w-4 shrink-0 text-[#9d9bbd]" />
+                <Lock className="h-4 w-4 shrink-0 text-muted" />
                 <input
                   type={showPw ? "text" : "password"}
                   value={password}
@@ -154,7 +154,7 @@ export function AuthModal() {
                   autoComplete={mode === "signin" ? "current-password" : "new-password"}
                   className={INPUT}
                 />
-                <button type="button" aria-label={showPw ? "Hide password" : "Show password"} onClick={() => setShowPw((v) => !v)} className="text-[#9d9bbd] hover:text-white">
+                <button type="button" aria-label={showPw ? "Hide password" : "Show password"} onClick={() => setShowPw((v) => !v)} className="text-muted hover:text-white">
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </label>
@@ -165,23 +165,23 @@ export function AuthModal() {
               <button
                 type="submit"
                 disabled={busy}
-                className="accent-bg flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-bold text-black transition hover:brightness-110 disabled:opacity-60"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-lime text-sm font-semibold text-ink transition-transform active:scale-[0.98] disabled:opacity-60"
               >
                 {busy && <RefreshCw className="spinner h-4 w-4" />}
                 {mode === "signin" ? "Sign in" : "Create account"}
               </button>
             </form>
 
-            <div className="mt-4 flex items-center justify-between text-sm text-[#aeabcf]">
+            <div className="mt-4 flex items-center justify-between text-sm text-muted">
               {mode === "signin" ? (
                 <>
                   <button type="button" onClick={onReset} className="hover:text-white hover:underline">Forgot password?</button>
-                  <button type="button" onClick={() => setMode("signup")} className="font-semibold text-white hover:underline">Create account</button>
+                  <button type="button" onClick={() => setMode("signup")} className="font-semibold text-lime hover:underline">Create account</button>
                 </>
               ) : (
                 <>
                   <span>Already have an account?</span>
-                  <button type="button" onClick={() => setMode("signin")} className="font-semibold text-white hover:underline">Sign in</button>
+                  <button type="button" onClick={() => setMode("signin")} className="font-semibold text-lime hover:underline">Sign in</button>
                 </>
               )}
             </div>

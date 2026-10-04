@@ -9,32 +9,44 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        brand: "#b69cff",
-        brand2: "#5eead4",
-        ink: "#0a0b1f",
-        panel: "#14152e",
-        elevated: "#1d1e3d",
+        // Surfaces (flat, no blur - cheap to paint)
+        ink: "#0c0b11",
+        surface: "#15141b",
+        panel: "#15141b",
+        elevated: "#1e1c25",
+        chip: "#26242f",
+        // Text
+        muted: "#9b98aa",
+        // Accents
+        lime: "#c6e84a",
+        brand: "#c6e84a", // legacy alias: existing classes (text-brand, fill-brand...) now render lime
+        brand2: "#d4a2f6",
+        lilac: "#d4a2f6",
+        peach: "#f5b79a",
+        sky: "#9fd8f2",
+        rose: "#f2a6c8",
       },
-      boxShadow: {
-        glow: "0 0 40px -8px rgb(168 85 247 / 0.45)",
+      borderRadius: {
+        "4xl": "2rem",
       },
       keyframes: {
-        shimmer: {
-          "0%": { backgroundPosition: "0% 50%" },
-          "100%": { backgroundPosition: "200% 50%" },
+        pop: {
+          "0%": { transform: "scale(0.7)", opacity: "0" },
+          "100%": { transform: "scale(1)", opacity: "1" },
         },
-        marquee: {
-          "0%": { transform: "translateX(0)" },
-          "100%": { transform: "translateX(-50%)" },
+        sheet: {
+          "0%": { transform: "translateY(24px)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
         },
-        pulsebar: {
-          "0%, 100%": { transform: "scaleY(0.35)" },
-          "50%": { transform: "scaleY(1)" },
+        fade: {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
         },
       },
       animation: {
-        shimmer: "shimmer 2.4s linear infinite",
-        marquee: "marquee 12s linear infinite",
+        pop: "pop 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        sheet: "sheet 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        fade: "fade 160ms ease-out both",
       },
     },
   },

@@ -12,9 +12,9 @@ export function ShelfRow({ shelf }: { shelf: Shelf }) {
   if (!tracks.length && !cards.length) return null;
 
   return (
-    <section className="mb-8">
-      <h2 className="mb-2 text-xl font-bold tracking-tight md:text-2xl">{shelf.title}</h2>
-      <div className="no-scrollbar -mx-3 flex gap-0 overflow-x-auto px-0 pb-2 md:-mx-3">
+    <section className="cv-auto mb-9">
+      <h2 className="mb-3.5 text-[22px] font-semibold tracking-tight">{shelf.title}</h2>
+      <div className="no-scrollbar scroll-area flex gap-3.5 overflow-x-auto pb-1">
         {cards.map((c) => (
           <GlassCard key={`${c.type}-${c.id}`} item={c} onClick={() => openCard(c, tracks)} />
         ))}
@@ -28,14 +28,14 @@ export function ShelfRow({ shelf }: { shelf: Shelf }) {
 
 export function ShelfSkeleton() {
   return (
-    <div className="mb-8 animate-pulse">
-      <div className="mb-3 h-6 w-48 rounded bg-white/10" />
-      <div className="flex gap-3 overflow-hidden">
+    <div className="mb-9 animate-pulse">
+      <div className="mb-4 h-6 w-48 rounded-full bg-chip" />
+      <div className="flex gap-3.5 overflow-hidden">
         {Array.from({ length: 7 }).map((_, i) => (
           <div key={i} className="w-[148px] shrink-0 sm:w-[172px]">
-            <div className="aspect-square rounded-xl bg-white/10" />
-            <div className="mt-3 h-3 w-24 rounded bg-white/10" />
-            <div className="mt-2 h-3 w-16 rounded bg-white/5" />
+            <div className="aspect-square rounded-3xl bg-elevated" />
+            <div className="mt-3 h-3 w-24 rounded-full bg-chip" />
+            <div className="mt-2 h-3 w-16 rounded-full bg-elevated" />
           </div>
         ))}
       </div>

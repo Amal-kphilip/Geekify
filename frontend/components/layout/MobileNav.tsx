@@ -2,41 +2,47 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Library, Plus, Search } from "lucide-react";
+import { Heart, Home, Library, Plus, Search } from "lucide-react";
 import { useLibraryStore } from "@/store/useLibraryStore";
 
 const items = [
   { href: "/", label: "Home", icon: Home },
   { href: "/search", label: "Search", icon: Search },
   { href: "/library", label: "Your Collection", icon: Library },
+  { href: "/liked", label: "Favourites", icon: Heart },
 ] as const;
 
-/** Mobile bottom navigation: Home / Search / Your Collection / Create. */
+/** Mobile bottom navigation: a floating pill; the active tab becomes a lime circle. */
 export function MobileNav() {
   const pathname = usePathname();
   const router = useRouter();
   const createPlaylist = useLibraryStore((s) => s.createPlaylist);
 
-  const cls = (active: boolean) =>
-    `flex flex-1 flex-col items-center gap-1 py-2 text-[11px] transition ${active ? "text-brand" : "text-[#9d9bbd]"}`;
+  const base = "flex h-12 w-12 items-center justify-center rounded-full transition-colors";
 
   return (
     <nav
-      className="glass-strong mx-2 mb-2 flex shrink-0 rounded-3xl pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="mx-4 mb-[max(0.5rem,env(safe-area-inset-bottom))] flex shrink-0 items-center justify-between rounded-full bg-elevated px-2 py-2 md:hidden"
       aria-label="Main navigation"
     >
       {items.map(({ href, label, icon: Icon }) => {
         const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
         return (
-          <Link key={href} href={href} className={cls(active)} aria-current={active ? "page" : undefined}>
-            <Icon className={`h-6 w-6 ${active ? "stroke-[2.5]" : ""}`} />
-            {label}
+          <Link
+            key={href}
+            href={href}
+            aria-label={label}
+            aria-current={active ? "page" : undefined}
+            className={`${base} ${active ? "bg-lime text-ink" : "text-muted active:text-white"}`}
+          >
+            <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.3 : 1.8} />
           </Link>
         );
       })}
       <button
         type="button"
-        className={cls(false)}
+        aria-label="Create playlist"
+        className={`${base} text-muted active:text-white`}
         onClick={() => {
           const name = window.prompt("Playlist name", "My playlist");
           if (!name) return;
@@ -44,8 +50,7 @@ export function MobileNav() {
           router.push(`/playlist/local/${pl.id}`);
         }}
       >
-        <Plus className="h-6 w-6" />
-        Create
+        <Plus className="h-[22px] w-[22px]" strokeWidth={1.8} />
       </button>
     </nav>
   );

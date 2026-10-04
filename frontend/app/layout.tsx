@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
@@ -16,7 +16,12 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "Geekify",
-  description: "Glassmorphism music streaming powered by YouTube Music",
+  description: "Music streaming powered by YouTube Music",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0c0b11",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

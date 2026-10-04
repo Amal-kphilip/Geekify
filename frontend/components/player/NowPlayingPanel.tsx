@@ -23,13 +23,13 @@ export function NowPlayingPanel() {
   const upNextSrc = upNext ? artUrl(upNext.thumbnails, 80) : undefined;
 
   return (
-    <aside className="scrollbar-thin flex h-full w-[320px] shrink-0 flex-col overflow-y-auto rounded-2xl glass-strong p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <aside className="scrollbar-thin flex h-full w-[320px] shrink-0 flex-col overflow-y-auto rounded-[28px] bg-surface p-5">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <h3 className="truncate text-base font-bold">{track.album || "Now playing"}</h3>
         <button
           type="button"
           onClick={() => setNowPlayingOpen(false)}
-          className="rounded-full p-1.5 text-[#aeabcf] transition hover:text-white"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-chip text-muted transition-colors hover:text-white"
           aria-label="Close now playing view"
         >
           <X className="h-5 w-5" />
@@ -37,33 +37,33 @@ export function NowPlayingPanel() {
       </div>
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="aspect-square w-full rounded-2xl object-cover" />
+        <img src={src} alt="" className="aspect-square w-full rounded-full object-cover" />
       ) : (
-        <div className="aspect-square w-full rounded-2xl bg-white/10" />
+        <div className="aspect-square w-full rounded-full bg-chip" />
       )}
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-5 flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-2xl font-bold">{track.title}</div>
-          <div className="truncate text-[#aeabcf]">{track.artist}</div>
+          <div className="truncate text-2xl font-semibold tracking-tight">{track.title}</div>
+          <div className="truncate text-muted">{track.artist}</div>
         </div>
         <button
           type="button"
           onClick={() => toggleLike(track)}
-          className="rounded-full p-2"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-chip"
           aria-label={liked ? "Unlike" : "Like"}
           aria-pressed={liked}
         >
-          <Heart className={`h-6 w-6 ${liked ? "fill-brand text-brand" : "text-[#aeabcf] hover:text-white"}`} />
+          <Heart className={`h-6 w-6 ${liked ? "fill-lime text-lime" : "text-muted hover:text-white"}`} />
         </button>
       </div>
 
-      <div className="mt-6 rounded-2xl bg-[#1d1e3d] p-4">
+      <div className="mt-6 rounded-3xl bg-elevated p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h4 className="font-bold">Next in queue</h4>
+          <h4 className="font-semibold">Next in queue</h4>
           <button
             type="button"
             onClick={() => setQueueOpen(true)}
-            className="text-sm font-semibold text-[#aeabcf] transition hover:text-white hover:underline"
+            className="text-sm font-medium text-muted transition-colors hover:text-lime"
           >
             Open queue
           </button>
@@ -76,17 +76,17 @@ export function NowPlayingPanel() {
           >
             {upNextSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={upNextSrc} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
+              <img src={upNextSrc} alt="" className="h-12 w-12 shrink-0 rounded-2xl object-cover" />
             ) : (
-              <div className="h-12 w-12 shrink-0 rounded bg-white/10" />
+              <div className="h-12 w-12 shrink-0 rounded-2xl bg-chip" />
             )}
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{upNext.title}</div>
-              <div className="truncate text-sm text-[#aeabcf]">{upNext.artist}</div>
+              <div className="truncate text-sm text-muted">{upNext.artist}</div>
             </div>
           </button>
         ) : (
-          <p className="text-sm text-[#9d9bbd]">Nothing up next yet.</p>
+          <p className="text-sm text-muted">Nothing up next yet.</p>
         )}
       </div>
     </aside>

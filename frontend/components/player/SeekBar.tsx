@@ -35,7 +35,7 @@ export function SeekBar({ className = "", large = false }: { className?: string;
 
   return (
     <div className={`flex w-full items-center gap-2 ${className}`}>
-      <span className="w-10 text-right text-[11px] tabular-nums text-[#9d9bbd]">{fmtTime(shown)}</span>
+      <span className="w-10 text-right text-[11px] tabular-nums text-muted">{fmtTime(shown)}</span>
       <input
         type="range"
         aria-label="Seek"
@@ -52,12 +52,12 @@ export function SeekBar({ className = "", large = false }: { className?: string;
         onBlur={commit}
         className={`seekbar w-full touch-pan-x ${large ? "seekbar-lg" : ""}`}
         style={{
-          background: `linear-gradient(90deg, var(--seek-fill, #fff), var(--seek-fill, #fff)) 0 / ${pct}% 100% no-repeat, rgba(255,255,255,0.3)`,
+          background: `linear-gradient(90deg, var(--seek-fill, #fff), var(--seek-fill, #fff)) 0 / ${pct}% 100% no-repeat, var(--seek-track)`,
           borderRadius: 99,
           height: large ? 6 : 4,
         }}
       />
-      <span className="w-10 text-[11px] tabular-nums text-[#9d9bbd]">{fmtTime(duration)}</span>
+      <span className="w-10 text-[11px] tabular-nums text-muted">{fmtTime(duration)}</span>
     </div>
   );
 }

@@ -65,7 +65,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative flex h-[100dvh] flex-col bg-ink">
-      <div className="aurora" aria-hidden="true" />
       <AudioEngine />
       <AccountSync />
       <div className="relative z-10 flex min-h-0 flex-1 gap-3 md:p-3 md:pb-0">
@@ -75,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <TopBar />
           </Suspense>
           <div className="flex min-h-0 flex-1 gap-3">
-            <main className="scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:glass md:rounded-3xl md:p-7">
+            <main className="scrollbar-thin scroll-area min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-4 pt-[max(1.25rem,env(safe-area-inset-top))] md:rounded-[28px] md:bg-surface md:p-7">
               {children}
             </main>
             {rightPanel && <div className="hidden lg:flex">{rightPanel}</div>}
@@ -83,7 +82,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       {/* Small screens: the queue opens full-screen (above the expanded player too). */}
-      {queueOpen && <div className="fixed inset-0 z-[120] bg-panel lg:hidden">{<QueuePanel />}</div>}
+      {queueOpen && <div className="fixed inset-0 z-[120] bg-ink animate-fade lg:hidden">{<QueuePanel />}</div>}
       <div className="relative z-10 flex flex-col">
         <NowPlayingBar />
         <MobileNav />

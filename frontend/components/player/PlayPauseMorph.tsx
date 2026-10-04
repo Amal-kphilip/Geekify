@@ -1,7 +1,9 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-
+/**
+ * Play / pause / loading glyph. Pure SVG + a tiny CSS pop on swap (no JS animation runtime),
+ * so toggling playback never janks the main thread.
+ */
 export function PlayPauseMorph({
   playing,
   loading = false,
@@ -9,10 +11,10 @@ export function PlayPauseMorph({
 }: {
   playing: boolean;
   loading?: boolean;
-  /** "dark" icon for use on a white button, "light" icon on a dark background. */
+  /** "dark" icon for use on a light/lime button, "light" icon on a dark background. */
   tone?: "dark" | "light";
 }) {
-  const ink = tone === "dark" ? "black" : "white";
+  const ink = tone === "dark" ? "#0c0b11" : "white";
   if (loading) {
     return (
       <svg viewBox="0 0 24 24" className="spinner h-6 w-6" fill="none" stroke={ink} strokeWidth="3" strokeLinecap="round">
@@ -23,29 +25,14 @@ export function PlayPauseMorph({
   }
   return (
     <svg viewBox="0 0 24 24" className="h-6 w-6" fill={ink}>
-      <AnimatePresence mode="wait" initial={false}>
-        {playing ? (
-          <motion.g
-            key="pause"
-            initial={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.6 }}
-            transition={{ duration: 0.16 }}
-          >
-            <rect x="5" y="4" width="5" height="16" rx="1.2" />
-            <rect x="14" y="4" width="5" height="16" rx="1.2" />
-          </motion.g>
-        ) : (
-          <motion.path
-            key="play"
-            d="M8 5.5v13l11-6.5L8 5.5z"
-            initial={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.6 }}
-            transition={{ duration: 0.16 }}
-          />
-        )}
-      </AnimatePresence>
+      {playing ? (
+        <g key="pause" className="animate-pop [transform-box:fill-box] [transform-origin:center]">
+          <rect x="5.5" y="4" width="4.5" height="16" rx="1.4" />
+          <rect x="14" y="4" width="4.5" height="16" rx="1.4" />
+        </g>
+      ) : (
+        <path key="play" className="animate-pop [transform-box:fill-box] [transform-origin:center]" d="M8 5.5v13l11-6.5L8 5.5z" />
+      )}
     </svg>
   );
 }
