@@ -1,12 +1,14 @@
 "use client";
 
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { EmailAuthProvider, GoogleAuthProvider, deleteUser, reauthenticateWithCredential, reauthenticateWithPopup } from "firebase/auth";
+import { deleteDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { getFirebase } from "@/lib/firebase";
 import { useAuthStore, type SyncState } from "@/store/useAuthStore";
 import { useHistoryStore } from "@/store/useHistoryStore";
 import { useLibraryStore } from "@/store/useLibraryStore";
 import { useRecommendStore } from "@/store/useRecommendStore";
-import type { LocalPlaylist, Thumbnail, Track } from "@/lib/types";
+import type { LocalPlaylist, SavedCollection, Track } from "@/lib/types";
+import { savedKey, slimThumbnails } from "@/lib/types";
 
 /**
  * Keeps the signed-in user's library (favourites, playlists) and listening history in
@@ -24,7 +26,13 @@ const PUSH_DELAY_MS = 2000;
 const STALE_PULL_MS = 60_000;
 const MAX_HISTORY = 40;
 
-type CloudDoc = { liked?: Track[]; playlists?: LocalPlaylist[]; history?: Track[]; updatedAt?: number };
+type CloudDoc = {
+  liked?: Track[];
+  playlists?: LocalPlaylist[];
+  history?: Track[];
+  saved?: SavedCollection[];
+  updatedAt?: number;
+};
 
 let generation = 0;
 let activeUid: string | null = null;
@@ -35,13 +43,6 @@ let lastPull = 0;
 
 const setSync = (s: SyncState) => useAuthStore.getState().setSync(s);
 
-function slimThumbs(thumbs: Thumbnail[] | undefined): Thumbnail[] {
-  if (!thumbs?.length) return [];
-  const sorted = [...thumbs].sort((a, b) => (a.width || 0) - (b.width || 0));
-  const pick = sorted.length > 1 ? [sorted[0], sorted[sorted.length - 1]] : sorted;
-  return pick.map((t) => ({ url: t.url, width: t.width ?? null, height: t.height ?? null }));
-}
-
 /** Firestore rejects undefined and has a 1 MB document cap, so store compact tracks. */
 function slim(t: Track): Track {
   return {
@@ -51,7 +52,7 @@ function slim(t: Track): Track {
     artists: (t.artists ?? []).map((a) => ({ name: a.name, id: a.id ?? null })),
     album: t.album ?? null,
     albumId: t.albumId ?? null,
-    thumbnails: slimThumbs(t.thumbnails),
+    thumbnails: slimThumbnails(t.thumbnails),
     duration: t.duration ?? null,
     durationSeconds: t.durationSeconds ?? null,
     explicit: Boolean(t.explicit),
@@ -80,6 +81,12 @@ function mergePlaylists(local: LocalPlaylist[], cloud: LocalPlaylist[]): LocalPl
   return [...byId.values()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 }
 
+function mergeSaved(local: SavedCollection[], cloud: SavedCollection[]): SavedCollection[] {
+  const byKey = new Map<string, SavedCollection>();
+  for (const c of [...cloud, ...local]) if (c?.id && !byKey.has(savedKey(c))) byKey.set(savedKey(c), c);
+  return [...byKey.values()].sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+}
+
 function snapshot(): CloudDoc {
   const lib = useLibraryStore.getState();
   const hist = useHistoryStore.getState();
@@ -87,6 +94,14 @@ function snapshot(): CloudDoc {
     liked: lib.liked.map(slim),
     playlists: lib.playlists.map((p) => ({ ...p, tracks: p.tracks.map(slim) })),
     history: hist.recent.slice(0, MAX_HISTORY).map(slim),
+    saved: lib.saved.map((c) => ({
+      id: c.id,
+      type: c.type,
+      title: c.title,
+      subtitle: c.subtitle ?? null,
+      thumbnails: slimThumbnails(c.thumbnails),
+      savedAt: c.savedAt,
+    })),
     updatedAt: Date.now(),
   };
 }
@@ -113,10 +128,10 @@ function schedulePush(uid: string) {
   }, PUSH_DELAY_MS);
 }
 
-function applyCloud(liked: Track[], playlists: LocalPlaylist[], history: Track[]) {
+function applyCloud(liked: Track[], playlists: LocalPlaylist[], history: Track[], saved: SavedCollection[]) {
   applying = true;
   try {
-    useLibraryStore.setState({ liked, playlists });
+    useLibraryStore.setState({ liked, playlists, saved });
     useHistoryStore.setState({ recent: history.slice(0, MAX_HISTORY) });
   } finally {
     applying = false;
@@ -139,12 +154,14 @@ async function pull(uid: string, token: number, firstTime: boolean): Promise<boo
   const hist = useHistoryStore.getState();
 
   if (cloud && lastUid === uid) {
-    applyCloud(cloud.liked ?? [], cloud.playlists ?? [], cloud.history ?? []);
+    // Older cloud documents have no "saved" list: keep what's on this device rather than wiping it.
+    applyCloud(cloud.liked ?? [], cloud.playlists ?? [], cloud.history ?? [], cloud.saved ?? lib.saved);
   } else if (firstTime) {
     applyCloud(
       mergeTracks(lib.liked, cloud?.liked ?? []),
       mergePlaylists(lib.playlists, cloud?.playlists ?? []),
-      mergeTracks(hist.recent, cloud?.history ?? [])
+      mergeTracks(hist.recent, cloud?.history ?? []),
+      mergeSaved(lib.saved, cloud?.saved ?? [])
     );
   }
   window.localStorage.setItem(SYNC_UID_KEY, uid);
@@ -202,7 +219,54 @@ export async function signOutAndClear(): Promise<void> {
   }
   stopCloudSync();
   await useAuthStore.getState().signOut();
-  applyCloud([], [], []);
+  applyCloud([], [], [], []);
+  useRecommendStore.getState().clear();
+  window.localStorage.removeItem(SYNC_UID_KEY);
+}
+
+/** Thrown when an email/password account tries to delete itself without typing the password. */
+export class PasswordRequiredError extends Error {
+  code = "geekify/password-required";
+  constructor() {
+    super("Enter your password to confirm.");
+  }
+}
+
+/**
+ * Permanently delete the signed-in account: re-confirm identity (Firebase requires a recent
+ * login), erase the cloud copy of the library + picture, delete the login itself, then wipe
+ * this device. Sync is stopped first so nothing re-creates the cloud document.
+ */
+export async function deleteAccountAndClear(password?: string): Promise<void> {
+  const fb = getFirebase();
+  const user = fb?.auth.currentUser;
+  if (!fb || !user) throw new Error("You're not signed in.");
+  const uid = user.uid;
+
+  // 1) Prove it's really them (nothing is touched until this succeeds).
+  if (user.providerData.some((p) => p.providerId === "password") && user.email) {
+    if (!password) throw new PasswordRequiredError();
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+  } else {
+    await reauthenticateWithPopup(user, new GoogleAuthProvider());
+  }
+
+  // 2) Stop syncing, then erase cloud data while the rules still recognise this user.
+  stopCloudSync();
+  try {
+    await deleteDoc(doc(fb.db, "users", uid, "profile", "avatar")).catch(() => undefined);
+    await deleteDoc(doc(fb.db, "users", uid));
+    // 3) Finally the login itself.
+    await deleteUser(user);
+  } catch (e) {
+    // Still signed in with local data intact: resume syncing (it re-publishes the library) and report.
+    void startCloudSync(uid);
+    throw e;
+  }
+
+  // 4) Wipe this device.
+  useAuthStore.getState().afterDeleted();
+  applyCloud([], [], [], []);
   useRecommendStore.getState().clear();
   window.localStorage.removeItem(SYNC_UID_KEY);
 }

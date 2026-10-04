@@ -11,6 +11,7 @@ import { NowPlayingPanel } from "@/components/player/NowPlayingPanel";
 import { QueuePanel } from "@/components/player/QueuePanel";
 import { ExpandedPlayer } from "@/components/player/ExpandedPlayer";
 import { AuthModal } from "@/components/auth/AuthModal";
+import { AccountModal } from "@/components/auth/AccountModal";
 import { startCloudSync, stopCloudSync } from "@/lib/cloudSync";
 import { prewarmStream, warmBackend } from "@/lib/api";
 import { useUiStore } from "@/store/useUiStore";
@@ -89,6 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <AnimatePresence>{expanded && <ExpandedPlayer />}</AnimatePresence>
       <AuthModal />
+      <AccountModal />
     </div>
   );
 }

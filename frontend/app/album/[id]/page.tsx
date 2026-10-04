@@ -8,6 +8,7 @@ import { TrackRow } from "@/components/ui/TrackRow";
 import { artUrl } from "@/lib/types";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { CollectionHeader, PlayButton } from "@/components/ui/CollectionHeader";
+import { SaveCollectionButton } from "@/components/ui/SaveCollectionButton";
 
 export default function AlbumPage() {
   const { id } = useParams<{ id: string }>();
@@ -41,6 +42,16 @@ export default function AlbumPage() {
         meta={`${data.artist}${data.year ? ` \u2022 ${data.year}` : ""} \u2022 ${data.tracks.length} tracks`}
       >
         {data.tracks[0] && <PlayButton onClick={() => play(data.tracks[0], data.tracks)} />}
+        <SaveCollectionButton
+          item={{
+            id,
+            // the page can fall back to a playlist when the id isn't an album, so trust what loaded
+            type: data.type,
+            title: data.title,
+            subtitle: data.artist || data.subtitle || null,
+            thumbnails: data.thumbnails,
+          }}
+        />
       </CollectionHeader>
       {data.tracks.map((t, i) => (
         <TrackRow key={t.videoId} track={t} index={i} queue={data.tracks} />

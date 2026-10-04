@@ -90,6 +90,27 @@ export type LocalPlaylist = {
   createdAt: number;
 };
 
+/** An album or playlist from YouTube Music that the user saved to their library (metadata only; tracks load on open). */
+export type SavedCollection = {
+  /** The id used in the page URL (/album/{id} or /playlist/{id}). */
+  id: string;
+  type: "album" | "playlist";
+  title: string;
+  subtitle?: string | null;
+  thumbnails: Thumbnail[];
+  savedAt: number;
+};
+
+export const savedKey = (c: Pick<SavedCollection, "type" | "id">) => `${c.type}:${c.id}`;
+
+/** Keep just the smallest + largest thumbnail: plenty for a cover, and tiny in storage. */
+export function slimThumbnails(thumbs: Thumbnail[] | undefined): Thumbnail[] {
+  if (!thumbs?.length) return [];
+  const sorted = [...thumbs].sort((a, b) => (a.width || 0) - (b.width || 0));
+  const pick = sorted.length > 1 ? [sorted[0], sorted[sorted.length - 1]] : sorted;
+  return pick.map((t) => ({ url: t.url, width: t.width ?? null, height: t.height ?? null }));
+}
+
 export function isTrack(item: Card | Track): item is Track {
   return "videoId" in item && Boolean((item as Track).videoId) && "artist" in item;
 }

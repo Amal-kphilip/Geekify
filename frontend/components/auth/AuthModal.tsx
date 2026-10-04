@@ -159,7 +159,7 @@ export function AuthModal() {
                 </button>
               </label>
 
-              {error && <p className="text-sm text-rose-300" role="alert">{error}</p>}
+              {error && <p className="text-sm text-red-300" role="alert">{error}</p>}
               {info && <p className="text-sm text-emerald-300" role="status">{info}</p>}
 
               <button

@@ -38,7 +38,7 @@ export default function LocalPlaylistPage() {
         </button>
         <button
           type="button"
-          className={`${chipBtn} text-rose-300`}
+          className={`${chipBtn} text-red-300`}
           onClick={() => {
             if (window.confirm("Delete this playlist?")) {
               deletePlaylist(pl.id);
@@ -54,7 +54,7 @@ export default function LocalPlaylistPage() {
           <TrackRow track={t} index={i} queue={pl.tracks} />
           <button
             type="button"
-            className="mb-1 ml-[72px] text-xs text-muted transition-colors hover:text-rose-300"
+            className="mb-1 ml-[72px] text-xs text-muted transition-colors hover:text-red-300"
             onClick={() => removeFromPlaylist(pl.id, t.videoId)}
           >
             Remove

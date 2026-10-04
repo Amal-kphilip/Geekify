@@ -12,13 +12,19 @@ import {
   updateProfile,
   type User,
 } from "firebase/auth";
+import { loadAvatar, removeAvatar, saveAvatar } from "@/lib/avatar";
 import { firebaseConfigured, getFirebase } from "@/lib/firebase";
 
 export type AccountUser = {
   uid: string;
   email: string | null;
   name: string;
+  /** The picture to show: the custom one if set, otherwise the Google photo (or null). */
   photoURL: string | null;
+  /** True when photoURL is a picture the user uploaded here. */
+  customPhoto: boolean;
+  /** Signs in with an email + password (needed to re-confirm before deleting the account). */
+  hasPassword: boolean;
 };
 
 export type SyncState = "idle" | "syncing" | "saved" | "error";
@@ -36,11 +42,25 @@ type AuthState = {
   signInGoogle: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateName: (name: string) => Promise<void>;
+  /** Save a new profile picture (a data URL), or pass null to go back to the default. */
+  setAvatar: (dataUrl: string | null) => Promise<void>;
+  /** Called once the account has been deleted. */
+  afterDeleted: () => void;
 };
+
+export const MAX_NAME_LENGTH = 40;
 
 function toAccount(u: User): AccountUser {
   const fallback = u.email ? u.email.split("@")[0] : "Listener";
-  return { uid: u.uid, email: u.email, name: u.displayName?.trim() || fallback, photoURL: u.photoURL };
+  return {
+    uid: u.uid,
+    email: u.email,
+    name: u.displayName?.trim() || fallback,
+    photoURL: u.photoURL,
+    customPhoto: false,
+    hasPassword: u.providerData.some((p) => p.providerId === "password"),
+  };
 }
 
 /** Turns Firebase error codes into sentences a person can act on. */
@@ -68,6 +88,12 @@ export function friendlyAuthError(e: unknown): string {
       return "This website isn't authorised for sign-in yet (add it under Firebase \u2192 Authentication \u2192 Settings \u2192 Authorized domains).";
     case "auth/operation-not-allowed":
       return "This sign-in method isn't enabled in Firebase yet.";
+    case "auth/requires-recent-login":
+      return "For your security, please sign out, sign back in, and try again.";
+    case "auth/user-mismatch":
+      return "That's a different account from the one you're signed in with.";
+    case "auth/credential-already-in-use":
+      return "That sign-in is already linked to another account.";
     default:
       return "Something went wrong. Please try again.";
   }
@@ -75,7 +101,7 @@ export function friendlyAuthError(e: unknown): string {
 
 let started = false;
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   status: "loading",
   user: null,
   configured: firebaseConfigured,
@@ -91,7 +117,18 @@ export const useAuthStore = create<AuthState>((set) => ({
       return;
     }
     onAuthStateChanged(fb.auth, (u) => {
-      set(u ? { status: "signed-in", user: toAccount(u) } : { status: "guest", user: null });
+      if (!u) {
+        set({ status: "guest", user: null });
+        return;
+      }
+      set({ status: "signed-in", user: toAccount(u) });
+      // The custom picture lives in Firestore: fetch it after the page is already usable.
+      void loadAvatar(u.uid)
+        .then((url) => {
+          const cur = get().user;
+          if (url && cur && cur.uid === u.uid) set({ user: { ...cur, photoURL: url, customPhoto: true } });
+        })
+        .catch(() => undefined);
     });
   },
 
@@ -128,4 +165,30 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (fb) await firebaseSignOut(fb.auth);
     set({ user: null, status: "guest", sync: "idle" });
   },
+
+  updateName: async (name) => {
+    const fb = getFirebase();
+    const u = fb?.auth.currentUser;
+    if (!u) throw new Error("You're not signed in.");
+    const clean = name.trim().replace(/\s+/g, " ");
+    if (!clean) throw new Error("Enter a name.");
+    if (clean.length > MAX_NAME_LENGTH) throw new Error(`Keep your name under ${MAX_NAME_LENGTH} characters.`);
+    await updateProfile(u, { displayName: clean });
+    const cur = get().user;
+    if (cur && cur.uid === u.uid) set({ user: { ...cur, name: clean } });
+  },
+
+  setAvatar: async (dataUrl) => {
+    const fb = getFirebase();
+    const u = fb?.auth.currentUser;
+    if (!u) throw new Error("You're not signed in.");
+    if (dataUrl) await saveAvatar(u.uid, dataUrl);
+    else await removeAvatar(u.uid);
+    const cur = get().user;
+    if (cur && cur.uid === u.uid) {
+      set({ user: { ...cur, photoURL: dataUrl ?? u.photoURL, customPhoto: Boolean(dataUrl) } });
+    }
+  },
+
+  afterDeleted: () => set({ user: null, status: "guest", sync: "idle" }),
 }));

@@ -2,11 +2,16 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { LocalPlaylist, Track } from "@/lib/types";
+import type { LocalPlaylist, SavedCollection, Track } from "@/lib/types";
+import { savedKey, slimThumbnails } from "@/lib/types";
 
 type LibraryState = {
   liked: Track[];
   playlists: LocalPlaylist[];
+  /** Albums and playlists saved from YouTube Music (newest first). */
+  saved: SavedCollection[];
+  toggleSaved: (c: Omit<SavedCollection, "savedAt">) => void;
+  removeSaved: (type: SavedCollection["type"], id: string) => void;
   toggleLike: (track: Track) => void;
   isLiked: (videoId: string) => boolean;
   createPlaylist: (name: string) => LocalPlaylist;
@@ -21,6 +26,17 @@ export const useLibraryStore = create<LibraryState>()(
     (set, get) => ({
       liked: [],
       playlists: [],
+      saved: [],
+      toggleSaved: (c) => {
+        const key = savedKey(c);
+        const saved = get().saved;
+        if (saved.some((x) => savedKey(x) === key)) {
+          set({ saved: saved.filter((x) => savedKey(x) !== key) });
+        } else {
+          set({ saved: [{ ...c, thumbnails: slimThumbnails(c.thumbnails), savedAt: Date.now() }, ...saved] });
+        }
+      },
+      removeSaved: (type, id) => set({ saved: get().saved.filter((x) => !(x.type === type && x.id === id)) }),
       toggleLike: (track) => {
         const liked = get().liked;
         const exists = liked.some((t) => t.videoId === track.videoId);

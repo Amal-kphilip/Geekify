@@ -6,6 +6,20 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
+
+    // Profile picture (a data URL, may be an animated GIF) in its own small document.
+    // Kept separate so it can never push the library document over Firestore's 1 MiB limit.
+    match /users/{uid}/profile/{docId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && docId == 'avatar'
+        && request.resource.data.keys().hasOnly(['dataUrl', 'updatedAt'])
+        && request.resource.data.dataUrl is string
+        && request.resource.data.dataUrl.matches('^data:image/(png|jpeg|webp|gif);base64,.*')
+        && request.resource.data.dataUrl.size() < 850000;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

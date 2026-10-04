@@ -8,6 +8,7 @@ import { TrackRow } from "@/components/ui/TrackRow";
 import { artUrl } from "@/lib/types";
 import { usePlayerStore } from "@/store/usePlayerStore";
 import { CollectionHeader, PlayButton } from "@/components/ui/CollectionHeader";
+import { SaveCollectionButton } from "@/components/ui/SaveCollectionButton";
 
 export default function PlaylistPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +37,15 @@ export default function PlaylistPage() {
     <div>
       <CollectionHeader cover={cover} kind="Playlist" title={data.title} meta={data.subtitle || `${data.tracks.length} tracks`}>
         {data.tracks[0] && <PlayButton onClick={() => play(data.tracks[0], data.tracks)} />}
+        <SaveCollectionButton
+          item={{
+            id,
+            type: data.type,
+            title: data.title,
+            subtitle: data.subtitle || null,
+            thumbnails: data.thumbnails,
+          }}
+        />
       </CollectionHeader>
       {data.tracks.map((t, i) => (
         <TrackRow key={t.videoId} track={t} index={i} queue={data.tracks} />

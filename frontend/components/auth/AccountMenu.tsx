@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Check, LogOut, RefreshCw, User } from "lucide-react";
+import { Check, LogOut, RefreshCw, Settings, User } from "lucide-react";
+import { Avatar } from "@/components/auth/Avatar";
 import { signOutAndClear } from "@/lib/cloudSync";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useLibraryStore } from "@/store/useLibraryStore";
@@ -13,6 +14,7 @@ export function AccountMenu({ align = "right" }: { align?: "left" | "right" }) {
   const user = useAuthStore((s) => s.user);
   const sync = useAuthStore((s) => s.sync);
   const setAuthOpen = useUiStore((s) => s.setAuthOpen);
+  const setAccountOpen = useUiStore((s) => s.setAccountOpen);
   const likedCount = useLibraryStore((s) => s.liked.length);
   const playlistCount = useLibraryStore((s) => s.playlists.length);
   const [open, setOpen] = useState(false);
@@ -34,7 +36,6 @@ export function AccountMenu({ align = "right" }: { align?: "left" | "right" }) {
     );
   }
 
-  const initial = (user.name[0] || "?").toUpperCase();
   const syncLabel =
     sync === "syncing" ? "Syncing\u2026" : sync === "error" ? "Sync paused \u2013 will retry" : "Synced to your account";
 
@@ -45,14 +46,9 @@ export function AccountMenu({ align = "right" }: { align?: "left" | "right" }) {
         onClick={() => setOpen((o) => !o)}
         aria-label="Account menu"
         aria-expanded={open}
-        className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-lime text-sm font-bold text-ink transition-transform active:scale-95"
+        className="rounded-full transition-transform active:scale-95"
       >
-        {user.photoURL ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.photoURL} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
-        ) : (
-          initial
-        )}
+        <Avatar user={user} />
       </button>
       {open && (
         <>
@@ -72,6 +68,17 @@ export function AccountMenu({ align = "right" }: { align?: "left" | "right" }) {
               </div>
             </div>
             <div className="my-1 h-px bg-white/10" />
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setAccountOpen(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
+            >
+              <Settings className="h-4 w-4" />
+              Account settings
+            </button>
             <button
               type="button"
               onClick={() => {
