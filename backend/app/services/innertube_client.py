@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+import weakref
 from typing import Any, Optional
 
 import innertube
@@ -33,7 +34,16 @@ class PlayabilityError(Exception):
 
 
 def _client(name: str) -> innertube.InnerTube:
-    return innertube.InnerTube(name)
+    # A fresh client per call keeps requests independent (the library stores the
+    # visitor id on the session). But each one owns an httpx.Client (SSL context +
+    # connection pool) that was never closed, so they piled up and ate RAM.
+    # Close the session as soon as the client is garbage-collected.
+    client = innertube.InnerTube(name)
+    try:
+        weakref.finalize(client, client.adaptor.session.close)
+    except Exception:  # noqa: BLE001 - never let cleanup wiring break a request
+        pass
+    return client
 
 
 def _is_client_error(exc: Exception) -> bool:

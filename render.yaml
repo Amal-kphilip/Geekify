@@ -4,8 +4,18 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      # One process only: every extra worker re-loads yt-dlp (~200 MB) and OOMs a 512 MB box.
+      - key: WEB_CONCURRENCY
+        value: "1"
+      # Stop glibc from giving every thread its own big heap; return freed memory sooner.
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: MALLOC_TRIM_THRESHOLD_
+        value: "131072"
+      - key: YTDLP_MAX_CONCURRENT
+        value: "1"
     plan: free
