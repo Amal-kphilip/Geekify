@@ -1,6 +1,6 @@
 # Geekify
 
-Full-stack music streaming UI with a glassmorphism shell. Search, browse, and playback metadata come from YouTube Music via InnerTube; audio bytes are resolved on the server (ANDROID client first, yt-dlp cipher fallback) and **proxied** so the browser never sees Google CDN URLs.
+Full-stack music streaming UI with a glassmorphism shell and an interactive ASCII butterfly background. Search, browse, and playback metadata come from YouTube Music via InnerTube; audio bytes are resolved on the server (ANDROID client first, yt-dlp cipher fallback) and **proxied** so the browser never sees Google CDN URLs.
 
 ## Run locally
 
@@ -75,6 +75,14 @@ NEXT_PUBLIC_FIREBASE_APP_ID=...
 ```
 
 How sync behaves: on first sign-in on a device, local guest data is merged into the account; afterwards the cloud copy is the source of truth and changes are saved a couple of seconds after you make them. Signing out clears local data from that device.
+
+## ASCII Butterfly Background & Tweaks
+
+`frontend/components/layout/ButterflyBackground.tsx` renders a live 3D butterfly flock onto an ASCII canvas behind the translucent UI shell. Click **Tweaks** next to the profile button (on both desktop and mobile headers) to customize the background in real time:
+
+- **Color & Palette**: Toggle **Multiple colors** (`On` / `Off`) to switch between a single wing color and a 4-color flock (`Color 1`–`Color 4` pickers with matching shimmer trails), plus **Extra color spread**, **Hue shift**, and **Color cycle speed**.
+- **Flock & Motion**: Adjust **Butterfly count**, **Size**, **Wing flap speed**, **Flight speed**, **Glide vs flutter**, **Swirl**, and **Shimmer trail**.
+- **Interaction & Display**: Toggle **Cursor reaction** (`Attract` / `Scatter`) and tune **ASCII cell size**, **Character crispness**, and **Contrast**.
 
 ## Keyboard
 
