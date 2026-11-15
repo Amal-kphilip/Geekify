@@ -1355,10 +1355,6 @@ function mountTweakPanel(
   const body = el("div", "tweaks-body scrollbar-thin");
   panel.append(header, body);
 
-  const opener = el("button", "tweaks-open tweaks-glass");
-  opener.type = "button";
-  opener.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span>Tweaks</span>`;
-
   const refreshers: (() => void)[] = [];
   const refreshAll = () => refreshers.forEach((r) => r());
 
@@ -1510,7 +1506,6 @@ function mountTweakPanel(
 
   const setOpen = (open: boolean) => {
     panel.hidden = !open;
-    opener.hidden = open;
     try {
       localStorage.setItem(OPEN_KEY, open ? "1" : "0");
     } catch {
@@ -1521,8 +1516,12 @@ function mountTweakPanel(
     hideTip();
     setOpen(false);
   });
-  opener.addEventListener("click", () => setOpen(true));
-  document.body.append(panel, opener, tip);
+  const onToggleEvent = () => {
+    if (!panel.hidden) hideTip();
+    setOpen(panel.hidden);
+  };
+  window.addEventListener("tweaks:toggle", onToggleEvent);
+  document.body.append(panel, tip);
 
   let open = false;
   try {
@@ -1535,11 +1534,15 @@ function mountTweakPanel(
   return {
     destroy() {
       clearTimeout(armed);
+      window.removeEventListener("tweaks:toggle", onToggleEvent);
       panel.remove();
-      opener.remove();
       tip.remove();
     },
   };
+}
+
+export function toggleTweaksPanel() {
+  window.dispatchEvent(new CustomEvent("tweaks:toggle"));
 }
 
 // ── engine & component ────────────────────────────────────────────
@@ -1626,7 +1629,7 @@ export function ButterflyBackground() {
     const onPointerDown = (e: PointerEvent) => {
       if (reducedMotion.matches) return;
       const target = e.target as HTMLElement | null;
-      if (target?.closest(".tweaks, .tweaks-open")) return;
+      if (target?.closest(".tweaks, .tweaks-open-inline")) return;
       const rect = canvas.getBoundingClientRect();
       flock.startle(e.clientX - rect.left, e.clientY - rect.top);
     };

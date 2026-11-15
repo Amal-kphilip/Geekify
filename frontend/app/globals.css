@@ -208,8 +208,7 @@ input[type="range"]:disabled {
   font-size: 12px;
   color: #e8ebf7;
 }
-.tweaks[hidden],
-.tweaks-open[hidden] {
+.tweaks[hidden] {
   display: none;
 }
 .tweaks-head {
@@ -419,32 +418,7 @@ input[type="range"]:disabled {
   border: none;
   border-radius: 999px;
 }
-.tweaks-open {
-  position: fixed;
-  top: 17px;
-  right: 140px;
-  z-index: 50;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 38px;
-  padding: 0 15px 0 13px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 500;
-  color: rgba(232, 235, 247, 0.8);
-  cursor: pointer;
-}
-.tweaks-open:hover {
-  color: #fff;
-  background-color: rgba(20, 22, 34, 0.85);
-}
 @media (max-width: 767px) {
-  .tweaks-open {
-    top: auto;
-    bottom: calc(max(0.5rem, env(safe-area-inset-bottom)) + 76px);
-    right: 16px;
-  }
   .tweaks {
     top: auto;
     bottom: 12px;
