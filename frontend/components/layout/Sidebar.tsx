@@ -23,7 +23,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className="relative z-20 hidden w-[76px] shrink-0 flex-col items-center gap-2 rounded-[28px] bg-surface py-4 md:flex"
+      className="relative z-20 hidden w-[76px] shrink-0 flex-col items-center gap-2 rounded-[28px] bg-surface/75 py-4 md:flex"
       aria-label="Main navigation"
     >
       <Link

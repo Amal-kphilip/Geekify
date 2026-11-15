@@ -176,6 +176,285 @@ input[type="range"]:disabled {
   animation: spin-slow 0.8s linear infinite;
 }
 
+/* ---- Butterfly Tweaks panel ---- */
+.tweaks-glass {
+  isolation: isolate;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.06)
+  );
+  background-color: rgba(10, 12, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.22),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 24px rgba(140, 170, 255, 0.07),
+    0 16px 48px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+}
+.tweaks {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 60;
+  width: 288px;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #e8ebf7;
+}
+.tweaks[hidden],
+.tweaks-open[hidden] {
+  display: none;
+}
+.tweaks-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 10px 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.tweaks-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+.tweaks-action,
+.tweaks-close {
+  height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(232, 235, 247, 0.72);
+  cursor: pointer;
+  font-size: 12px;
+}
+.tweaks-action {
+  padding: 0 10px;
+}
+.tweaks-action.confirm {
+  color: #ff9a9a;
+  background: rgba(255, 90, 90, 0.14);
+  border-color: rgba(255, 120, 120, 0.45);
+}
+.tweaks-action.confirm:hover {
+  color: #ffb4b4;
+  background: rgba(255, 90, 90, 0.22);
+}
+.tweaks-close {
+  width: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+.tweaks-action:hover,
+.tweaks-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #e8ebf7;
+}
+.tweaks-body {
+  overflow-y: auto;
+  padding: 4px 16px 14px;
+  overscroll-behavior: contain;
+}
+.tweaks-group h3 {
+  margin: 14px 0 6px;
+  font: 600 10px/1 var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 235, 247, 0.4);
+}
+.tweaks-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 0;
+  color: rgba(232, 235, 247, 0.72);
+}
+.tweaks-row.off {
+  opacity: 0.4;
+}
+.tweaks-label {
+  cursor: default;
+  user-select: none;
+}
+.tweaks-tip {
+  position: fixed;
+  z-index: 70;
+  max-width: 240px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(14, 16, 26, 0.94);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+  line-height: 1.45;
+  color: #e8ebf7;
+  pointer-events: none;
+}
+.tweaks-tip[hidden] {
+  display: none;
+}
+.tweaks-tip small {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(232, 235, 247, 0.4);
+}
+.tweaks-value {
+  font: 600 11px var(--font-geist-mono), ui-monospace, monospace;
+  color: #e8ebf7;
+}
+.tweaks-row input[type="range"] {
+  grid-column: 1 / -1;
+}
+.tweaks input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 18px;
+  margin: 2px 0 0;
+  background: transparent;
+  cursor: pointer;
+}
+.tweaks input[type="range"]:disabled {
+  cursor: default;
+}
+.tweaks input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    #7aa2ff var(--fill, 50%),
+    rgba(255, 255, 255, 0.1) var(--fill, 50%)
+  );
+}
+.tweaks input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.tweaks input[type="range"]::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: #7aa2ff;
+}
+.tweaks input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  opacity: 1;
+}
+.tweaks input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  opacity: 1;
+}
+.tweaks input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: 30px;
+  height: 18px;
+  margin: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.tweaks input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: translate 0.2s;
+}
+.tweaks input[type="checkbox"]:checked {
+  background: #7aa2ff;
+}
+.tweaks input[type="checkbox"]:checked::after {
+  translate: 12px 0;
+}
+.tweaks input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 34px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+.tweaks input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.tweaks input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 999px;
+}
+.tweaks input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 999px;
+}
+.tweaks-open {
+  position: fixed;
+  top: 17px;
+  right: 140px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 15px 0 13px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(232, 235, 247, 0.8);
+  cursor: pointer;
+}
+.tweaks-open:hover {
+  color: #fff;
+  background-color: rgba(20, 22, 34, 0.85);
+}
+@media (max-width: 767px) {
+  .tweaks-open {
+    top: auto;
+    bottom: calc(max(0.5rem, env(safe-area-inset-bottom)) + 76px);
+    right: 16px;
+  }
+  .tweaks {
+    top: auto;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 70vh;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

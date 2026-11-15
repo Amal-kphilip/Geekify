@@ -132,7 +132,7 @@ export function NowPlayingBar() {
       </div>
 
       {/* ---------- Desktop bar ---------- */}
-      <div className="mx-3 mb-3 hidden h-[88px] shrink-0 grid-cols-[1fr_minmax(0,2fr)_1fr] items-center gap-4 rounded-[28px] bg-surface px-5 md:grid">
+      <div className="mx-3 mb-3 hidden h-[88px] shrink-0 grid-cols-[1fr_minmax(0,2fr)_1fr] items-center gap-4 rounded-[28px] bg-surface/80 px-5 md:grid">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"

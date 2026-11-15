@@ -5,6 +5,7 @@ import { AnimatePresence } from "framer-motion";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { MobileNav } from "./MobileNav";
+import { ButterflyBackground } from "./ButterflyBackground";
 import { AudioEngine } from "@/components/player/AudioEngine";
 import { NowPlayingBar } from "@/components/player/NowPlayingBar";
 import { NowPlayingPanel } from "@/components/player/NowPlayingPanel";
@@ -66,6 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative flex h-[100dvh] flex-col bg-ink">
+      <ButterflyBackground />
       <AudioEngine />
       <AccountSync />
       <div className="relative z-10 flex min-h-0 flex-1 gap-3 md:p-3 md:pb-0">
@@ -75,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <TopBar />
           </Suspense>
           <div className="flex min-h-0 flex-1 gap-3">
-            <main className="scrollbar-thin scroll-area min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-4 pt-[max(1.25rem,env(safe-area-inset-top))] md:rounded-[28px] md:bg-surface md:p-7">
+            <main className="scrollbar-thin scroll-area min-h-0 min-w-0 flex-1 overflow-y-auto px-5 pb-4 pt-[max(1.25rem,env(safe-area-inset-top))] md:rounded-[28px] md:bg-surface/65 md:p-7">
               {children}
             </main>
             {rightPanel && <div className="hidden lg:flex">{rightPanel}</div>}

@@ -92,7 +92,7 @@ export function QueuePanel() {
   };
 
   return (
-    <aside className="flex h-full w-full flex-col bg-surface p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:w-[320px] lg:rounded-[28px] lg:pt-4">
+    <aside className="flex h-full w-full flex-col bg-surface p-4 pt-[max(1rem,env(safe-area-inset-top))] lg:w-[320px] lg:rounded-[28px] lg:bg-surface/75 lg:pt-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-lg font-semibold">Queue</h3>
         <button type="button" aria-label="Close queue" className="flex h-9 w-9 items-center justify-center rounded-full bg-chip text-muted transition-colors hover:text-white" onClick={() => setQueueOpen(false)}>

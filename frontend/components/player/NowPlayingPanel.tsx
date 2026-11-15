@@ -23,7 +23,7 @@ export function NowPlayingPanel() {
   const upNextSrc = upNext ? artUrl(upNext.thumbnails, 80) : undefined;
 
   return (
-    <aside className="scrollbar-thin flex h-full w-[320px] shrink-0 flex-col overflow-y-auto rounded-[28px] bg-surface p-5">
+    <aside className="scrollbar-thin flex h-full w-[320px] shrink-0 flex-col overflow-y-auto rounded-[28px] bg-surface/75 p-5">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h3 className="truncate text-base font-bold">{track.album || "Now playing"}</h3>
         <button
