@@ -149,7 +149,11 @@ const DEFAULTS = {
   farBias: 1.7,
   grip: 5,
   separation: 700,
+  multiColor: false,
   wingColor: "#3287ff",
+  wingColor2: "#ff52a8",
+  wingColor3: "#c6e84a",
+  wingColor4: "#a855f7",
   hueShift: 0,
   colorCycle: 0,
   colorVariety: 0,
@@ -270,7 +274,8 @@ const butterflies = {
     const S = b.span;
     const open = Math.max(0.08, b.open);
     const ink$ = pen.ink;
-    const [cr, cg, cb] = pen.wingRgb;
+    const colorSlot = pen.multiColor ? b.id & 3 : 0;
+    const [cr, cg, cb] = pen.wingPalette[colorSlot];
     const pose: Pose = {
       x: b.x,
       y: b.y,
@@ -333,7 +338,7 @@ const butterflies = {
     const at5 = { x: 0, y: 0 };
     for (const side of [-1, 1]) {
       pen.toWorld(pose, tipU, tipV * side, at5);
-      pen.shed(at5.x, at5.y, (0.02 + 0.1 * stroke2) * b.depth);
+      pen.shed(at5.x, at5.y, (0.02 + 0.1 * stroke2) * b.depth, colorSlot);
     }
   },
 };
@@ -623,7 +628,13 @@ type SampleFn = (u: number, v: number, px: number, py: number) => boolean;
 class Pen {
   ink: InkOut = { r: 0, g: 0, b: 0, kind: 0, glyphs: null, au: 0, av: 0 };
   t = 0;
-  wingRgb: [number, number, number] = [50, 135, 255];
+  multiColor = false;
+  wingPalette: [number, number, number][] = [
+    [50, 135, 255],
+    [255, 82, 168],
+    [198, 232, 74],
+    [168, 85, 247],
+  ];
   private a = { x: 0, y: 0 };
   private b = { x: 0, y: 0 };
 
@@ -674,8 +685,8 @@ class Pen {
     this.r.line(a.x, a.y, b.x, b.y, color, this.fogFor(p.depth), tip);
   }
 
-  shed(x: number, y: number, amount: number) {
-    this.r.shed(x, y, amount);
+  shed(x: number, y: number, amount: number, colorSlot = 0) {
+    this.r.shed(x, y, amount, colorSlot);
   }
 }
 
@@ -693,7 +704,8 @@ class AsciiRenderer {
   fontFamily = "ui-monospace, Menlo, monospace";
   energy = new Float32Array(0);
   energyTmp = new Float32Array(0);
-  trailStyles: string[] = [];
+  trailSlot = new Uint8Array(0);
+  trailStyles: string[][] = [[], [], [], []];
   hue = hueMatrix(0);
   hueOn = false;
   activeHueDeg = 0;
@@ -715,27 +727,36 @@ class AsciiRenderer {
   }
 
   updateTrailStyles(hueDeg = this.activeHueDeg) {
-    const [wr, wg, wb] = hexToRgb(this.tuning.wingColor);
-    this.pen.wingRgb = [wr, wg, wb];
-    const baseTrail: [number, number, number] = [
-      wr + (255 - wr) * 0.22,
-      wg + (255 - wg) * 0.18,
-      wb + (255 - wb) * 0.22,
+    const hexes = [
+      this.tuning.wingColor,
+      this.tuning.wingColor2,
+      this.tuning.wingColor3,
+      this.tuning.wingColor4,
     ];
+    this.pen.multiColor = this.tuning.multiColor;
+    this.pen.wingPalette = hexes.map(hexToRgb);
     this.activeHueDeg = hueDeg;
     this.hue = hueMatrix(hueDeg);
     this.hueOn = Math.abs(hueDeg % 360) > 0.01;
-    const [r, g, b] = this.turn(baseTrail[0], baseTrail[1], baseTrail[2]);
-    this.trailStyles = [];
-    for (let l = 0; l < ALPHA_LEVELS; l++) {
-      this.trailStyles.push(
-        `rgba(${clamp(Math.round(r), 0, 255)},${clamp(Math.round(g), 0, 255)},${clamp(
-          Math.round(b),
-          0,
-          255
-        )},${((PALETTE.trailAlpha * (l + 1)) / ALPHA_LEVELS).toFixed(3)})`
-      );
-    }
+    this.trailStyles = this.pen.wingPalette.map(([wr, wg, wb]) => {
+      const baseTrail: [number, number, number] = [
+        wr + (255 - wr) * 0.22,
+        wg + (255 - wg) * 0.18,
+        wb + (255 - wb) * 0.22,
+      ];
+      const [r, g, b] = this.turn(baseTrail[0], baseTrail[1], baseTrail[2]);
+      const styles: string[] = [];
+      for (let l = 0; l < ALPHA_LEVELS; l++) {
+        styles.push(
+          `rgba(${clamp(Math.round(r), 0, 255)},${clamp(Math.round(g), 0, 255)},${clamp(
+            Math.round(b),
+            0,
+            255
+          )},${((PALETTE.trailAlpha * (l + 1)) / ALPHA_LEVELS).toFixed(3)})`
+        );
+      }
+      return styles;
+    });
   }
 
   restyle() {
@@ -773,6 +794,7 @@ class AsciiRenderer {
     if (this.cols !== prevCols || this.rows !== prevRows) {
       this.energy = new Float32Array(n);
       this.energyTmp = new Float32Array(n);
+      this.trailSlot = new Uint8Array(n);
       this.cellFlag = new Uint8Array(n);
       this.cellFill = new Uint32Array(n);
       this.cellColor = new Uint32Array(n);
@@ -821,9 +843,12 @@ class AsciiRenderer {
     return r * this.cols + c;
   }
 
-  shed(x: number, y: number, amount: number) {
+  shed(x: number, y: number, amount: number, colorSlot = 0) {
     const i = this.cellIndex(x, y);
-    if (i >= 0) this.energy[i] = Math.min(1.6, this.energy[i] + amount * this.tuning.trail);
+    if (i >= 0) {
+      this.energy[i] = Math.min(1.6, this.energy[i] + amount * this.tuning.trail);
+      this.trailSlot[i] = colorSlot & 3;
+    }
   }
 
   stamp(x: number, y: number, radius: number, amount: number) {
@@ -842,7 +867,7 @@ class AsciiRenderer {
   }
 
   diffuse(dt: number) {
-    const { cols, rows, energy, energyTmp: tmp } = this;
+    const { cols, rows, energy, energyTmp: tmp, trailSlot } = this;
     const decay = Math.exp(-dt * this.tuning.trailFade);
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -851,6 +876,26 @@ class AsciiRenderer {
         const rt = c < cols - 1 ? energy[i + 1] : energy[i];
         const u = r > 0 ? energy[i - cols] : energy[i];
         const d = r < rows - 1 ? energy[i + cols] : energy[i];
+        if (energy[i] < 0.08) {
+          let maxE = energy[i];
+          let slot = trailSlot[i];
+          if (c > 0 && l > maxE) {
+            maxE = l;
+            slot = trailSlot[i - 1];
+          }
+          if (c < cols - 1 && rt > maxE) {
+            maxE = rt;
+            slot = trailSlot[i + 1];
+          }
+          if (r > 0 && u > maxE) {
+            maxE = u;
+            slot = trailSlot[i - cols];
+          }
+          if (r < rows - 1 && d > maxE) {
+            slot = trailSlot[i + cols];
+          }
+          trailSlot[i] = slot;
+        }
         tmp[i] = (energy[i] * 4 + l + rt + u + d) * 0.125 * decay;
       }
     }
@@ -859,25 +904,30 @@ class AsciiRenderer {
   }
 
   drawTrail(t: number) {
-    const { ctx, cols, cw, ch, energy, cellFlag } = this;
+    const { ctx, cols, cw, ch, energy, cellFlag, trailSlot } = this;
     const small = Math.max(2, Math.round(cw * 0.19));
-    for (let level = 0; level < ALPHA_LEVELS; level++) {
-      ctx.fillStyle = this.trailStyles[level];
-      for (let i = 0; i < energy.length; i++) {
-        const e = energy[i];
-        if (e < 0.12 || cellFlag[i] === CELL_SOLID) continue;
-        const col = i % cols;
-        const row = (i / cols) | 0;
-        const twinkle = 0.75 + 0.25 * Math.sin(t * 5 + hash3(col, row, 3) * 40);
-        if (clamp(Math.floor(e * twinkle * 4 * ALPHA_LEVELS) - 1, 0, ALPHA_LEVELS - 1) !== level)
-          continue;
-        const size = e > 0.6 ? small + 1 : small;
-        ctx.fillRect(
-          Math.round(col * cw + cw * 0.5 - size / 2),
-          Math.round(row * ch + ch * 0.6 - size / 2),
-          size,
-          size
-        );
+    const slots = this.tuning.multiColor ? 4 : 1;
+    for (let s = 0; s < slots; s++) {
+      const styles = this.trailStyles[s];
+      for (let level = 0; level < ALPHA_LEVELS; level++) {
+        ctx.fillStyle = styles[level];
+        for (let i = 0; i < energy.length; i++) {
+          const e = energy[i];
+          if (e < 0.12 || cellFlag[i] === CELL_SOLID) continue;
+          if (slots > 1 && trailSlot[i] !== s) continue;
+          const col = i % cols;
+          const row = (i / cols) | 0;
+          const twinkle = 0.75 + 0.25 * Math.sin(t * 5 + hash3(col, row, 3) * 40);
+          if (clamp(Math.floor(e * twinkle * 4 * ALPHA_LEVELS) - 1, 0, ALPHA_LEVELS - 1) !== level)
+            continue;
+          const size = e > 0.6 ? small + 1 : small;
+          ctx.fillRect(
+            Math.round(col * cw + cw * 0.5 - size / 2),
+            Math.round(row * ch + ch * 0.6 - size / 2),
+            size,
+            size
+          );
+        }
       }
     }
   }
@@ -1100,6 +1150,7 @@ type ControlSpec =
       key: TuningKey;
       label: string;
       color: true;
+      disabledUnless?: TuningKey;
       hint: string;
     }
   | {
@@ -1117,10 +1168,45 @@ const BUTTERFLY_SECTIONS: [string, ControlSpec[]][] = [
     "Color",
     [
       {
+        key: "multiColor",
+        label: "Multiple colors",
+        toggle: true,
+        hint: "Turn on to give the butterflies multiple distinct wing and trail colours across the flock.",
+      },
+      {
         key: "wingColor",
-        label: "Wing color",
+        label: "Color 1 (Primary)",
         color: true,
-        hint: "Pick a custom base colour for the butterfly wings and their trail.",
+        hint: "Primary wing and trail colour (used for all butterflies when Multiple colors is off).",
+      },
+      {
+        key: "wingColor2",
+        label: "Color 2",
+        color: true,
+        disabledUnless: "multiColor",
+        hint: "Second butterfly colour when Multiple colors is enabled.",
+      },
+      {
+        key: "wingColor3",
+        label: "Color 3",
+        color: true,
+        disabledUnless: "multiColor",
+        hint: "Third butterfly colour when Multiple colors is enabled.",
+      },
+      {
+        key: "wingColor4",
+        label: "Color 4",
+        color: true,
+        disabledUnless: "multiColor",
+        hint: "Fourth butterfly colour when Multiple colors is enabled.",
+      },
+      {
+        key: "colorVariety",
+        label: "Extra color spread",
+        min: 0,
+        max: 1,
+        step: 0.01,
+        hint: "Adds extra individual hue variation to each butterfly across the colour wheel.",
       },
       {
         key: "hueShift",
@@ -1128,7 +1214,7 @@ const BUTTERFLY_SECTIONS: [string, ControlSpec[]][] = [
         min: -180,
         max: 180,
         step: 1,
-        hint: "Rotates the butterfly's colour around the colour wheel, in degrees.",
+        hint: "Rotates all butterfly colours around the colour wheel, in degrees.",
       },
       {
         key: "colorCycle",
@@ -1137,14 +1223,6 @@ const BUTTERFLY_SECTIONS: [string, ControlSpec[]][] = [
         max: 3,
         step: 0.05,
         hint: "Automatically cycles butterfly colours smoothly through the spectrum over time. 0 turns it off.",
-      },
-      {
-        key: "colorVariety",
-        label: "Rainbow flock",
-        min: 0,
-        max: 1,
-        step: 0.01,
-        hint: "Gives each individual butterfly its own colour variation across the flock. 0 makes them all match.",
       },
     ],
   ],
@@ -1419,6 +1497,9 @@ function mountTweakPanel(
         });
         refreshers.push(() => {
           picker.value = String(tuning[c.key]);
+          const off = c.disabledUnless ? !tuning[c.disabledUnless] : false;
+          picker.disabled = off;
+          row.classList.toggle("off", off);
         });
         label.addEventListener("dblclick", (e) => {
           e.preventDefault();
@@ -1588,7 +1669,16 @@ export function ButterflyBackground() {
     const setKey = <K extends TuningKey>(key: K, value: Tuning[K]) => {
       tuning[key] = value;
       if (key === "detail") resize();
-      else if (key === "hueShift" || key === "grid" || key === "wingColor" || key === "colorCycle")
+      else if (
+        key === "hueShift" ||
+        key === "grid" ||
+        key === "multiColor" ||
+        key === "wingColor" ||
+        key === "wingColor2" ||
+        key === "wingColor3" ||
+        key === "wingColor4" ||
+        key === "colorCycle"
+      )
         renderer.restyle();
       if (reducedMotion.matches) drawStill();
     };

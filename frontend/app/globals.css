@@ -407,6 +407,9 @@ input[type="range"]:disabled {
   cursor: pointer;
   overflow: hidden;
 }
+.tweaks input[type="color"]:disabled {
+  cursor: default;
+}
 .tweaks input[type="color"]::-webkit-color-swatch-wrapper {
   padding: 2px;
 }
