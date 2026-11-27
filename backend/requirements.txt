@@ -1,4 +1,4 @@
-fastapi>=0.110.0
+fastapi>=0.165.0
 uvicorn[standard]>=0.54.0
 httpx>=0.23.3,<0.24.0
 innertube>=2.1.19
