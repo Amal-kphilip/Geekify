@@ -1,6 +1,6 @@
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
-httpx>=0.23.3,<0.24.0
+httpx>=0.28.1,<0.29.0
 innertube>=2.1.19
 yt-dlp[default]>=2025.11.12
 deno>=2.0.0
