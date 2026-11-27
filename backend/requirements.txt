@@ -5,5 +5,5 @@ innertube>=2.1.19
 yt-dlp[default]>=2025.11.12
 deno>=2.0.0
 cachetools>=5.5.2
-pydantic>=2.6.0
+pydantic>=2.14.4
 python-multipart>=0.0.9
