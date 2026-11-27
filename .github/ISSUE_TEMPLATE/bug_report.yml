@@ -1,0 +1,61 @@
+name: Bug Report
+description: Report a bug in the Geekify frontend or backend
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug!
+        **Security reminder:** Never paste API keys, Firebase credentials, `.env` contents, or YouTube cookies (`cookies.txt`, `YOUTUBE_COOKIES*`) here.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Area
+      options:
+        - Frontend
+        - Backend
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: e.g. Windows 11, macOS 15, Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser (if applicable)
+      placeholder: e.g. Chrome 130, Firefox 132, Safari 18
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the issue?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Paste any console or server logs (make sure no tokens or cookies are included).
+      render: shell

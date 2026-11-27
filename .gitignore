@@ -14,7 +14,10 @@ frontend/.env*.local
 
 # Env / secrets
 .env
-.env.local
+.env.*
+!.env.example
+!frontend/.env.example
+!backend/.env.example
 *.pem
 
 # OS / IDE

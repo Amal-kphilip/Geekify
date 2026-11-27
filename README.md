@@ -1,6 +1,12 @@
 # Geekify
 
+[![CI](https://github.com/Amal-kphilip/Geekify/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Amal-kphilip/Geekify/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/Amal-kphilip/Geekify)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Amal-kphilip/Geekify)](https://github.com/Amal-kphilip/Geekify/releases)
+
 Full-stack music streaming UI with a glassmorphism shell and an interactive ASCII butterfly background. Search, browse, and playback metadata come from YouTube Music via InnerTube; audio bytes are resolved on the server (ANDROID client first, yt-dlp cipher fallback) and **proxied** so the browser never sees Google CDN URLs.
+
+Live demo: [geekify.vercel.app](https://geekify.vercel.app)
 
 ## Run locally
 
@@ -101,3 +107,19 @@ How sync behaves: on first sign-in on a device, local guest data is merged into 
 
 - **Songs won't play:** keep `yt-dlp` current (`pip install -U yt-dlp`) — YouTube changes break old versions quickly. On cloud hosts, supply cookies (above).
 - **Empty home / search:** check the backend log; InnerTube calls that return 4xx are no longer retried, so failures show up immediately.
+
+## Disclaimer
+
+Geekify is an independent open-source project and is **not affiliated with, endorsed by, or associated with YouTube or Google**. It accesses publicly available YouTube Music data and proxies audio streams on demand; **no media is stored by the project**. Users are responsible for complying with YouTube's Terms of Service and applicable copyright laws.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup instructions, check commands, and commit conventions, and please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+Please do not report security vulnerabilities in public issues. See [SECURITY.md](SECURITY.md) for private reporting instructions.
+
+## License
+
+Licensed under the [MIT License](LICENSE) — Copyright (c) Amal K Philip.
