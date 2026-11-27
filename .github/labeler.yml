@@ -1,0 +1,31 @@
+frontend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - frontend/**
+
+backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - backend/**
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - render.yaml
+          - firestore.rules
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/package*.json"
+          - "**/requirements*.txt"

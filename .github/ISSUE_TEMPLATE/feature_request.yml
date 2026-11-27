@@ -1,0 +1,24 @@
+name: Feature Request
+description: Suggest an improvement or new feature for Geekify
+title: "[Feat]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature Summary
+      description: Describe the feature you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why is this useful?
+      description: Explain the problem this solves or the workflow it improves.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative approaches or workarounds you've thought about.
