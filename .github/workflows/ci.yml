@@ -73,4 +73,4 @@ jobs:
         run: python -m compileall -q app
 
       - name: Run smoke tests
-        run: pytest
+        run: python -m pytest
